@@ -27,13 +27,32 @@ export async function GET(request: NextRequest) {
 
   if (type === "contacts") {
     const allContacts = db
-      .select()
+      .select({
+        name: contacts.name,
+        phone: contacts.phone,
+        phone2: contacts.phone2,
+        address: contacts.address,
+        city: contacts.city,
+        neighborhood: contacts.neighborhood,
+        identificationNumber: contacts.identificationNumber,
+        expeditionCity: contacts.expeditionCity,
+        companionName: contacts.companionName,
+        motorcycleInterest: contacts.motorcycleInterest,
+        company: contacts.company,
+        source: contacts.source,
+        score: contacts.score,
+        notes: contacts.notes,
+        createdAt: contacts.createdAt,
+        stageName: pipelineStages.name,
+      })
       .from(contacts)
+      .leftJoin(pipelineStages, eq(contacts.stageId, pipelineStages.id))
       .orderBy(desc(contacts.createdAt))
       .all();
 
     const headers = [
       "Nombre",
+      "Etapa",
       "Telefono",
       "Telefono 2",
       "Direccion",
@@ -52,6 +71,7 @@ export async function GET(request: NextRequest) {
 
     const rows = allContacts.map((c) => [
       c.name,
+      c.stageName || "",
       c.phone || "",
       c.phone2 || "",
       c.address || "",

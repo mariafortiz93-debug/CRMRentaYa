@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { pipelineStages, deals, contacts } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { pipelineStages, contacts } from "@/db/schema";
+import { eq, asc, desc } from "drizzle-orm";
 
 export async function GET() {
   const stages = db
@@ -10,27 +10,15 @@ export async function GET() {
     .orderBy(asc(pipelineStages.order))
     .all();
 
-  const allDeals = db
-    .select({
-      id: deals.id,
-      title: deals.title,
-      value: deals.value,
-      stageId: deals.stageId,
-      contactId: deals.contactId,
-      expectedClose: deals.expectedClose,
-      probability: deals.probability,
-      notes: deals.notes,
-      createdAt: deals.createdAt,
-      updatedAt: deals.updatedAt,
-      contactName: contacts.name,
-    })
-    .from(deals)
-    .leftJoin(contacts, eq(deals.contactId, contacts.id))
+  const allContacts = db
+    .select()
+    .from(contacts)
+    .orderBy(desc(contacts.createdAt))
     .all();
 
   const pipeline = stages.map((stage) => ({
     ...stage,
-    deals: allDeals.filter((d) => d.stageId === stage.id),
+    contacts: allContacts.filter((c) => c.stageId === stage.id),
   }));
 
   return NextResponse.json(pipeline);
@@ -44,17 +32,17 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  // Update a single deal's stage (drag and drop)
-  if (body.dealId && body.stageId) {
-    const existing = db.select().from(deals).where(eq(deals.id, body.dealId)).get();
+  // Move a contact to another stage (drag and drop)
+  if (body.contactId && body.stageId) {
+    const existing = db.select().from(contacts).where(eq(contacts.id, body.contactId)).get();
     if (!existing) {
-      return NextResponse.json({ error: "Deal no encontrado" }, { status: 404 });
+      return NextResponse.json({ error: "Contacto no encontrado" }, { status: 404 });
     }
 
     const result = db
-      .update(deals)
+      .update(contacts)
       .set({ stageId: body.stageId, updatedAt: new Date() })
-      .where(eq(deals.id, body.dealId))
+      .where(eq(contacts.id, body.contactId))
       .returning()
       .get();
 
@@ -63,13 +51,13 @@ export async function PUT(request: NextRequest) {
 
   // Bulk update stages (from /setup or /customize)
   if (body.stages && Array.isArray(body.stages)) {
-    // Delete existing stages (only if no deals reference them)
-    const existingDeals = db.select().from(deals).all();
-    if (existingDeals.length > 0) {
+    // Delete existing stages (only if no contacts reference them)
+    const existingContacts = db.select().from(contacts).all();
+    if (existingContacts.length > 0) {
       return NextResponse.json(
         {
           error:
-            "No se pueden reemplazar etapas cuando hay deals activos. Elimina los deals primero.",
+            "No se pueden reemplazar etapas cuando hay contactos activos. Elimina los contactos primero.",
         },
         { status: 400 }
       );
@@ -85,6 +73,7 @@ export async function PUT(request: NextRequest) {
           color: stage.color || "#64748b",
           isWon: stage.isWon || false,
           isLost: stage.isLost || false,
+          nextAction: stage.nextAction || null,
         })
         .run();
     }

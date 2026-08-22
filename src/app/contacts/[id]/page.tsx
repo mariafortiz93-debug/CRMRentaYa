@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { contacts, deals, activities, pipelineStages } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ContactDetailClient } from "@/components/contacts/ContactDetail";
 
@@ -15,6 +15,17 @@ export default async function ContactDetailPage({
 
   const contact = db.select().from(contacts).where(eq(contacts.id, id)).get();
   if (!contact) notFound();
+
+  const stages = db
+    .select({
+      id: pipelineStages.id,
+      name: pipelineStages.name,
+      color: pipelineStages.color,
+      nextAction: pipelineStages.nextAction,
+    })
+    .from(pipelineStages)
+    .orderBy(asc(pipelineStages.order))
+    .all();
 
   const contactDeals = db
     .select({
@@ -42,6 +53,7 @@ export default async function ContactDetailPage({
   return (
     <ContactDetailClient
       contact={contact as Parameters<typeof ContactDetailClient>[0]["contact"]}
+      stages={stages}
       deals={contactDeals as Parameters<typeof ContactDetailClient>[0]["deals"]}
       activities={contactActivities as Parameters<typeof ContactDetailClient>[0]["activities"]}
     />

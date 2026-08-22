@@ -70,6 +70,7 @@ export async function PUT(
   // Only allow updating specific fields
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (body.name !== undefined) updateData.name = body.name;
+  if (body.stageId !== undefined) updateData.stageId = body.stageId;
   if (body.phone !== undefined) updateData.phone = body.phone;
   if (body.phone2 !== undefined) updateData.phone2 = body.phone2;
   if (body.address !== undefined) updateData.address = body.address;
@@ -115,6 +116,8 @@ export async function DELETE(
     );
   }
 
+  db.delete(activities).where(eq(activities.contactId, id)).run();
+  db.delete(deals).where(eq(deals.contactId, id)).run();
   db.delete(contacts).where(eq(contacts.id, id)).run();
   return NextResponse.json({ success: true });
 }

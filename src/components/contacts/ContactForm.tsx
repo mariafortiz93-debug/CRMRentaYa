@@ -121,94 +121,104 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefono</Label>
-              <Input id="phone" {...register("phone")} placeholder="+57 300 1234567" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone2">Telefono 2 (WhatsApp)</Label>
-              <Input id="phone2" {...register("phone2")} placeholder="+57 300 1234567" />
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <Label htmlFor="address">Direccion</Label>
-            <Input id="address" {...register("address")} placeholder="Calle 123 #45-67" />
+            <Label htmlFor="phone">Telefono</Label>
+            <Input id="phone" {...register("phone")} placeholder="+57 300 1234567" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="city">Ciudad</Label>
-              <Input id="city" {...register("city")} placeholder="Ciudad" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="neighborhood">Barrio</Label>
-              <Input id="neighborhood" {...register("neighborhood")} placeholder="Barrio" />
-            </div>
-          </div>
+          {!isEditing && (
+            <p className="text-xs text-muted-foreground">
+              Los demas datos (direccion, cedula, moto de interes, etc.) se completan
+              despues, cuando el contacto llegue a la etapa de Registro Online.
+            </p>
+          )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="identificationNumber">No. de identificacion</Label>
-              <Input id="identificationNumber" {...register("identificationNumber")} placeholder="Cedula" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expeditionCity">Ciudad de expedicion</Label>
-              <Input id="expeditionCity" {...register("expeditionCity")} placeholder="Ciudad de expedicion" />
-            </div>
-          </div>
+          {isEditing && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="phone2">Telefono 2 (WhatsApp)</Label>
+                <Input id="phone2" {...register("phone2")} placeholder="+57 300 1234567" />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="companionName">Nombre del acompañante</Label>
-            <Input id="companionName" {...register("companionName")} placeholder="Nombre del acompañante" />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Direccion</Label>
+                <Input id="address" {...register("address")} placeholder="Calle 123 #45-67" />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="company">Empresa</Label>
-            <Input id="company" {...register("company")} placeholder="Nombre de la empresa" />
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="city">Ciudad</Label>
+                  <Input id="city" {...register("city")} placeholder="Ciudad" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="neighborhood">Barrio</Label>
+                  <Input id="neighborhood" {...register("neighborhood")} placeholder="Barrio" />
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Como supo de la empresa</Label>
-              <Select
-                value={watch("source")}
-                onValueChange={(v) => v && setValue("source", v)}
-              >
-                <SelectTrigger className="cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="redes">Redes sociales</SelectItem>
-                  <SelectItem value="referido">Referido</SelectItem>
-                  <SelectItem value="volanteo">Volanteo</SelectItem>
-                  <SelectItem value="concesionario">Concesionario</SelectItem>
-                  <SelectItem value="otro">Otro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Moto de interes</Label>
-              <Select
-                value={watch("motorcycleInterest")}
-                onValueChange={(v) => v && setValue("motorcycleInterest", v)}
-              >
-                <SelectTrigger className="cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="boxer_ct100_ks">Boxer CT100 KS</SelectItem>
-                  <SelectItem value="boxer_ct100_es">Boxer CT100 ES</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="identificationNumber">No. de identificacion</Label>
+                  <Input id="identificationNumber" {...register("identificationNumber")} placeholder="Cedula" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expeditionCity">Ciudad de expedicion</Label>
+                  <Input id="expeditionCity" {...register("expeditionCity")} placeholder="Ciudad de expedicion" />
+                </div>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea id="notes" {...register("notes")} placeholder="Notas sobre el contacto..." rows={3} />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="companionName">Nombre del acompañante</Label>
+                <Input id="companionName" {...register("companionName")} placeholder="Nombre del acompañante" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company">Empresa</Label>
+                <Input id="company" {...register("company")} placeholder="Nombre de la empresa" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Como supo de la empresa</Label>
+                  <Select
+                    value={watch("source")}
+                    onValueChange={(v) => v && setValue("source", v)}
+                  >
+                    <SelectTrigger className="cursor-pointer">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="redes">Redes sociales</SelectItem>
+                      <SelectItem value="referido">Referido</SelectItem>
+                      <SelectItem value="volanteo">Volanteo</SelectItem>
+                      <SelectItem value="concesionario">Concesionario</SelectItem>
+                      <SelectItem value="otro">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Moto de interes</Label>
+                  <Select
+                    value={watch("motorcycleInterest")}
+                    onValueChange={(v) => v && setValue("motorcycleInterest", v)}
+                  >
+                    <SelectTrigger className="cursor-pointer">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="boxer_ct100_ks">Boxer CT100 KS</SelectItem>
+                      <SelectItem value="boxer_ct100_es">Boxer CT100 ES</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notas</Label>
+                <Textarea id="notes" {...register("notes")} placeholder="Notas sobre el contacto..." rows={3} />
+              </div>
+            </>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose} className="cursor-pointer">

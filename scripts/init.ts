@@ -33,27 +33,35 @@ sqlite.pragma("foreign_keys = ON");
 
 // Create tables
 sqlite.exec(`
-  CREATE TABLE IF NOT EXISTS contacts (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    email TEXT,
-    phone TEXT,
-    company TEXT,
-    source TEXT NOT NULL DEFAULT 'otro',
-    temperature TEXT NOT NULL DEFAULT 'cold',
-    score INTEGER NOT NULL DEFAULT 0,
-    notes TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
-
   CREATE TABLE IF NOT EXISTS pipeline_stages (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     "order" INTEGER NOT NULL,
     color TEXT NOT NULL DEFAULT '#64748b',
     is_won INTEGER NOT NULL DEFAULT 0,
-    is_lost INTEGER NOT NULL DEFAULT 0
+    is_lost INTEGER NOT NULL DEFAULT 0,
+    next_action TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS contacts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    stage_id TEXT REFERENCES pipeline_stages(id),
+    phone TEXT,
+    phone2 TEXT,
+    address TEXT,
+    city TEXT,
+    neighborhood TEXT,
+    identification_number TEXT,
+    expedition_city TEXT,
+    companion_name TEXT,
+    motorcycle_interest TEXT,
+    company TEXT,
+    source TEXT NOT NULL DEFAULT 'otro',
+    score INTEGER NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS deals (
@@ -95,20 +103,28 @@ const stageCount = sqlite
 
 if (stageCount.count === 0) {
   const defaultStages = [
-    { name: "Prospecto", order: 1, color: "#64748b", isWon: 0, isLost: 0 },
-    { name: "Contactado", order: 2, color: "#2563eb", isWon: 0, isLost: 0 },
-    { name: "Propuesta", order: 3, color: "#8b5cf6", isWon: 0, isLost: 0 },
-    { name: "Negociacion", order: 4, color: "#ea580c", isWon: 0, isLost: 0 },
-    { name: "Cerrado Ganado", order: 5, color: "#16a34a", isWon: 1, isLost: 0 },
-    { name: "Cerrado Perdido", order: 6, color: "#dc2626", isWon: 0, isLost: 1 },
+    { name: "Prospecto", order: 1, color: "#64748b", isWon: 0, isLost: 0, nextAction: "whatsapp" },
+    { name: "Contactado", order: 2, color: "#2563eb", isWon: 0, isLost: 0, nextAction: "call" },
+    { name: "Propuesta", order: 3, color: "#8b5cf6", isWon: 0, isLost: 0, nextAction: null },
+    { name: "Negociacion", order: 4, color: "#ea580c", isWon: 0, isLost: 0, nextAction: null },
+    { name: "Cerrado Ganado", order: 5, color: "#16a34a", isWon: 1, isLost: 0, nextAction: null },
+    { name: "Cerrado Perdido", order: 6, color: "#dc2626", isWon: 0, isLost: 1, nextAction: null },
   ];
 
   const insert = sqlite.prepare(
-    `INSERT INTO pipeline_stages (id, name, "order", color, is_won, is_lost) VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO pipeline_stages (id, name, "order", color, is_won, is_lost, next_action) VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
 
   for (const stage of defaultStages) {
-    insert.run(crypto.randomUUID(), stage.name, stage.order, stage.color, stage.isWon, stage.isLost);
+    insert.run(
+      crypto.randomUUID(),
+      stage.name,
+      stage.order,
+      stage.color,
+      stage.isWon,
+      stage.isLost,
+      stage.nextAction
+    );
   }
   console.log("Default pipeline stages created.");
 } else {

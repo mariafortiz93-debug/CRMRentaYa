@@ -36,6 +36,7 @@ const contacts = [
   {
     id: crypto.randomUUID(),
     name: "Maria Garcia",
+    stage_id: stageMap.get("Inicio de Tramite") || stages[0].id,
     phone: "+57 300 1234567",
     phone2: "+57 300 1234567",
     address: "Calle 10 # 5-20",
@@ -55,6 +56,7 @@ const contacts = [
   {
     id: crypto.randomUUID(),
     name: "Carlos Rodriguez",
+    stage_id: stageMap.get("Visita al Concesionario") || stages[0].id,
     phone: "+57 310 9876543",
     phone2: null,
     address: "Carrera 45 # 12-30",
@@ -74,6 +76,7 @@ const contacts = [
   {
     id: crypto.randomUUID(),
     name: "Ana Martinez",
+    stage_id: stageMap.get("Prospecto") || stages[0].id,
     phone: "+57 315 5551234",
     phone2: "+57 315 5551234",
     address: "Avenida 6 # 20-15",
@@ -93,6 +96,7 @@ const contacts = [
   {
     id: crypto.randomUUID(),
     name: "Roberto Sanchez",
+    stage_id: stageMap.get("Estado de la Visita") || stages[0].id,
     phone: "+57 320 7778888",
     phone2: null,
     address: "Calle 80 # 30-40",
@@ -112,6 +116,7 @@ const contacts = [
   {
     id: crypto.randomUUID(),
     name: "Laura Hernandez",
+    stage_id: stageMap.get("Inicio de Tramite") || stages[0].id,
     phone: "+57 300 4445555",
     phone2: "+57 301 4445555",
     address: "Carrera 15 # 8-50",
@@ -132,17 +137,18 @@ const contacts = [
 
 const insertContact = sqlite.prepare(
   `INSERT OR IGNORE INTO contacts (
-     id, name, phone, phone2, address, city, neighborhood,
+     id, name, stage_id, phone, phone2, address, city, neighborhood,
      identification_number, expedition_city, companion_name, motorcycle_interest,
      company, source, score, notes, created_at, updated_at
    )
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 
 for (const c of contacts) {
   insertContact.run(
     c.id,
     c.name,
+    c.stage_id,
     c.phone,
     c.phone2,
     c.address,

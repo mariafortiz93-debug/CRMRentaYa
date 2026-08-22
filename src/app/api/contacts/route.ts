@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { contacts } from "@/db/schema";
-import { eq, like, or, desc } from "drizzle-orm";
+import { contacts, pipelineStages } from "@/db/schema";
+import { eq, like, or, desc, asc } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
 
   const {
     name,
+    stageId,
     phone,
     phone2,
     address,
@@ -63,10 +64,23 @@ export async function POST(request: NextRequest) {
 
   try {
     const now = new Date();
+
+    let resolvedStageId = stageId;
+    if (!resolvedStageId) {
+      const firstStage = db
+        .select({ id: pipelineStages.id })
+        .from(pipelineStages)
+        .orderBy(asc(pipelineStages.order))
+        .limit(1)
+        .get();
+      resolvedStageId = firstStage?.id || null;
+    }
+
     const result = db
       .insert(contacts)
       .values({
         name,
+        stageId: resolvedStageId,
         phone: phone || null,
         phone2: phone2 || null,
         address: address || null,

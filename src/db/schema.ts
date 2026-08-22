@@ -1,10 +1,23 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
+export const pipelineStages = sqliteTable("pipeline_stages", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  order: integer("order").notNull(),
+  color: text("color").notNull().default("#64748b"),
+  isWon: integer("is_won", { mode: "boolean" }).notNull().default(false),
+  isLost: integer("is_lost", { mode: "boolean" }).notNull().default(false),
+  nextAction: text("next_action"),
+});
+
 export const contacts = sqliteTable("contacts", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
+  stageId: text("stage_id").references(() => pipelineStages.id),
   phone: text("phone"),
   phone2: text("phone2"),
   address: text("address"),
@@ -24,17 +37,6 @@ export const contacts = sqliteTable("contacts", {
   updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
-});
-
-export const pipelineStages = sqliteTable("pipeline_stages", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull(),
-  order: integer("order").notNull(),
-  color: text("color").notNull().default("#64748b"),
-  isWon: integer("is_won", { mode: "boolean" }).notNull().default(false),
-  isLost: integer("is_lost", { mode: "boolean" }).notNull().default(false),
 });
 
 export const deals = sqliteTable("deals", {

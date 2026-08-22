@@ -11,9 +11,12 @@ export type LeadSource =
 
 export type MotorcycleInterest = "boxer_ct100_ks" | "boxer_ct100_es";
 
+export type NextAction = "call" | "whatsapp";
+
 export interface Contact {
   id: string;
   name: string;
+  stageId: string | null;
   phone: string | null;
   phone2: string | null;
   address: string | null;
@@ -51,6 +54,7 @@ export interface PipelineStage {
   color: string;
   isWon: boolean;
   isLost: boolean;
+  nextAction: NextAction | null;
 }
 
 export interface Activity {
@@ -77,6 +81,7 @@ export interface CrmConfig {
       color: string;
       isWon: boolean;
       isLost: boolean;
+      nextAction?: NextAction | null;
     }>;
   };
   leadSources: string[];
@@ -99,7 +104,7 @@ export interface ContactWithDeals extends Contact {
 }
 
 export interface PipelineColumn extends PipelineStage {
-  deals: DealWithContact[];
+  contacts: Contact[];
 }
 
 export interface DashboardStats {

@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface StageData {
   name: string;
   count: number;
-  value: number;
   color: string;
 }
 
@@ -32,7 +31,7 @@ export function PipelineChart({ data }: PipelineChartProps) {
       <CardContent>
         {data.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            No hay deals en el pipeline
+            No hay contactos en el pipeline
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
@@ -49,7 +48,7 @@ export function PipelineChart({ data }: PipelineChartProps) {
               />
               <Tooltip
                 formatter={(value) => [
-                  `${value} deals`,
+                  `${value} contactos`,
                   "Cantidad",
                 ]}
                 contentStyle={{

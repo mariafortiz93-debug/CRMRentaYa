@@ -13,7 +13,8 @@ import {
   type DragOverEvent,
 } from "@dnd-kit/core";
 import { KanbanColumn } from "./KanbanColumn";
-import { DealCard } from "./DealCard";
+import { ContactCard } from "./ContactCard";
+import { ContactMethodDialog } from "./ContactMethodDialog";
 import { toast } from "sonner";
 import type { PipelineColumn } from "@/types";
 
@@ -24,6 +25,9 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
   const [columns, setColumns] = useState(initialColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<{ contactId: string; stageId: string } | null>(
+    null
+  );
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
 
   const sensors = useSensors(
@@ -32,10 +36,10 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     })
   );
 
-  const activeDeal = activeId
+  const activeContact = activeId
     ? columns
-        .flatMap((col) => col.deals)
-        .find((d) => d.id === activeId)
+        .flatMap((col) => col.contacts)
+        .find((c) => c.id === activeId)
     : null;
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -52,30 +56,30 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
 
     // Find which columns the items are in
     const activeColumn = columns.find((col) =>
-      col.deals.some((d) => d.id === activeId)
+      col.contacts.some((c) => c.id === activeId)
     );
     const overColumn =
       columns.find((col) => col.id === overId) ||
-      columns.find((col) => col.deals.some((d) => d.id === overId));
+      columns.find((col) => col.contacts.some((c) => c.id === overId));
 
     if (!activeColumn || !overColumn || activeColumn.id === overColumn.id)
       return;
 
     setColumns((prev) => {
-      const activeDeal = activeColumn.deals.find((d) => d.id === activeId);
-      if (!activeDeal) return prev;
+      const activeContact = activeColumn.contacts.find((c) => c.id === activeId);
+      if (!activeContact) return prev;
 
       return prev.map((col) => {
         if (col.id === activeColumn.id) {
           return {
             ...col,
-            deals: col.deals.filter((d) => d.id !== activeId),
+            contacts: col.contacts.filter((c) => c.id !== activeId),
           };
         }
         if (col.id === overColumn.id) {
           return {
             ...col,
-            deals: [...col.deals, { ...activeDeal, stageId: col.id }],
+            contacts: [...col.contacts, { ...activeContact, stageId: col.id }],
           };
         }
         return col;
@@ -83,8 +87,41 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     });
   }, [columns]);
 
+  const commitMove = useCallback(
+    async (contactId: string, stageId: string, contactMethod?: "whatsapp" | "call") => {
+      try {
+        const res = await fetch("/api/pipeline", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactId, stageId }),
+        });
+        if (!res.ok) throw new Error("API error");
+
+        if (contactMethod) {
+          await fetch("/api/activities", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "call",
+              description:
+                contactMethod === "whatsapp"
+                  ? "Contacto inicial via WhatsApp"
+                  : "Contacto inicial via llamada telefonica",
+              contactId,
+            }),
+          });
+        }
+      } catch {
+        // Rollback to pre-drag state
+        setColumns(columnsSnapshot.current);
+        toast.error("Error al mover el contacto. Se revirtio el cambio.");
+      }
+    },
+    []
+  );
+
   const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
+    (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveId(null);
 
@@ -93,30 +130,18 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
       const activeId = active.id as string;
       const overColumn =
         columns.find((col) => col.id === over.id) ||
-        columns.find((col) => col.deals.some((d) => d.id === over.id));
+        columns.find((col) => col.contacts.some((c) => c.id === over.id));
 
       if (!overColumn) return;
 
-      // Update the deal's stage via API
-      try {
-        const res = await fetch("/api/pipeline", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            dealId: activeId,
-            stageId: overColumn.id,
-          }),
-        });
-        if (!res.ok) {
-          throw new Error("API error");
-        }
-      } catch {
-        // Rollback to pre-drag state
-        setColumns(columnsSnapshot.current);
-        toast.error("Error al mover el deal. Se revirtio el cambio.");
+      if (overColumn.name.toLowerCase() === "contactado") {
+        setPendingMove({ contactId: activeId, stageId: overColumn.id });
+        return;
       }
+
+      commitMove(activeId, overColumn.id);
     },
-    [columns]
+    [columns, commitMove]
   );
 
   return (
@@ -134,31 +159,43 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
             id={column.id}
             name={column.name}
             color={column.color}
-            deals={column.deals.map((d) => ({
-              id: d.id,
-              title: d.title,
-              value: d.value,
-              contactName: d.contactName || (d.contact?.name ?? null),
-              probability: d.probability,
+            nextAction={column.nextAction}
+            contacts={column.contacts.map((c) => ({
+              id: c.id,
+              name: c.name,
+              phone: c.phone,
+              source: c.source,
             }))}
           />
         ))}
       </div>
 
       <DragOverlay>
-        {activeDeal ? (
-          <DealCard
-            id={activeDeal.id}
-            title={activeDeal.title}
-            value={activeDeal.value}
-            contactName={
-              activeDeal.contactName ||
-              (activeDeal.contact?.name ?? null)
+        {activeContact ? (
+          <ContactCard
+            id={activeContact.id}
+            name={activeContact.name}
+            phone={activeContact.phone}
+            source={activeContact.source}
+            nextAction={
+              columns.find((col) => col.id === activeContact.stageId)?.nextAction ?? null
             }
-            probability={activeDeal.probability}
           />
         ) : null}
       </DragOverlay>
+
+      <ContactMethodDialog
+        open={!!pendingMove}
+        onClose={() => {
+          setColumns(columnsSnapshot.current);
+          setPendingMove(null);
+        }}
+        onSelect={(method) => {
+          const move = pendingMove;
+          setPendingMove(null);
+          if (move) commitMove(move.contactId, move.stageId, method);
+        }}
+      />
     </DndContext>
   );
 }

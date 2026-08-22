@@ -5,28 +5,26 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { DealCard } from "./DealCard";
-import { formatCurrency } from "@/lib/constants";
+import { ContactCard } from "./ContactCard";
+import type { NextAction } from "@/types";
 
-interface Deal {
+interface ContactCardData {
   id: string;
-  title: string;
-  value: number;
-  contactName: string | null;
-  probability: number;
+  name: string;
+  phone: string | null;
+  source: string;
 }
 
 interface KanbanColumnProps {
   id: string;
   name: string;
   color: string;
-  deals: Deal[];
+  nextAction: NextAction | null;
+  contacts: ContactCardData[];
 }
 
-export function KanbanColumn({ id, name, color, deals }: KanbanColumnProps) {
+export function KanbanColumn({ id, name, color, nextAction, contacts }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
-
-  const totalValue = deals.reduce((sum, d) => sum + d.value, 0);
 
   return (
     <div
@@ -42,21 +40,17 @@ export function KanbanColumn({ id, name, color, deals }: KanbanColumnProps) {
         />
         <h3 className="text-sm font-semibold flex-1 truncate">{name}</h3>
         <span className="text-xs text-muted-foreground bg-background rounded-full px-2 py-0.5">
-          {deals.length}
+          {contacts.length}
         </span>
       </div>
 
-      <div className="p-2 text-xs text-muted-foreground text-center border-b">
-        {formatCurrency(totalValue)}
-      </div>
-
       <SortableContext
-        items={deals.map((d) => d.id)}
+        items={contacts.map((c) => c.id)}
         strategy={verticalListSortingStrategy}
       >
         <div className="flex-1 p-2 space-y-2 min-h-[100px] overflow-y-auto">
-          {deals.map((deal) => (
-            <DealCard key={deal.id} {...deal} />
+          {contacts.map((contact) => (
+            <ContactCard key={contact.id} {...contact} nextAction={nextAction} />
           ))}
         </div>
       </SortableContext>

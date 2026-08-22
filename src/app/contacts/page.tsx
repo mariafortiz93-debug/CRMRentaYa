@@ -5,10 +5,11 @@ import { ContactsTable } from "@/components/contacts/ContactsTable";
 import { ContactForm } from "@/components/contacts/ContactForm";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import type { Contact } from "@/types";
+import type { Contact, PipelineStage } from "@/types";
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [stages, setStages] = useState<PipelineStage[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -23,6 +24,9 @@ export default function ContactsPage() {
 
   useEffect(() => {
     loadContacts();
+    fetch("/api/pipeline")
+      .then((res) => res.json())
+      .then((data) => setStages(data));
   }, []);
 
   const handleCloseForm = () => {
@@ -52,7 +56,7 @@ export default function ContactsPage() {
           ))}
         </div>
       ) : (
-        <ContactsTable contacts={contacts} />
+        <ContactsTable contacts={contacts} stages={stages} />
       )}
 
       <ContactForm open={showForm} onClose={handleCloseForm} />

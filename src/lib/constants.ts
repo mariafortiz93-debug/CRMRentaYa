@@ -1,4 +1,4 @@
-import type { LeadSource, ActivityType, MotorcycleInterest } from "@/types";
+import type { LeadSource, ActivityType, MotorcycleInterest, NextAction } from "@/types";
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
   redes: "Redes sociales",
@@ -13,6 +13,11 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
 export const MOTORCYCLE_LABELS: Record<MotorcycleInterest, string> = {
   boxer_ct100_ks: "Boxer CT100 KS",
   boxer_ct100_es: "Boxer CT100 ES",
+};
+
+export const NEXT_ACTION_CONFIG: Record<NextAction, { label: string; icon: string }> = {
+  call: { label: "Llamar", icon: "Phone" },
+  whatsapp: { label: "Enviar WhatsApp", icon: "MessageCircle" },
 };
 
 export const ACTIVITY_TYPE_CONFIG: Record<

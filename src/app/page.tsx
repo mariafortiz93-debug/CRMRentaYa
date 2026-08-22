@@ -44,10 +44,7 @@ export default function DashboardPage() {
     .filter((s) => !s.isLost)
     .map((stage) => ({
       name: stage.name,
-      count: allDeals.filter((d) => d.stageId === stage.id).length,
-      value: allDeals
-        .filter((d) => d.stageId === stage.id)
-        .reduce((sum, d) => sum + d.value, 0),
+      count: allContacts.filter((c) => c.stageId === stage.id).length,
       color: stage.color,
     }));
 

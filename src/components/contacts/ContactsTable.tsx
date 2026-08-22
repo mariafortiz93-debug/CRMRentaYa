@@ -16,13 +16,15 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { Search, Users, Download } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import { SOURCE_LABELS } from "@/lib/constants";
-import type { Contact, LeadSource } from "@/types";
+import type { Contact, LeadSource, PipelineStage } from "@/types";
 
 interface ContactsTableProps {
   contacts: Contact[];
+  stages: PipelineStage[];
 }
 
-export function ContactsTable({ contacts }: ContactsTableProps) {
+export function ContactsTable({ contacts, stages }: ContactsTableProps) {
+  const stageById = new Map(stages.map((s) => [s.id, s]));
   const router = useRouter();
   const [search, setSearch] = useState("");
 
@@ -78,6 +80,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Nombre</TableHead>
+              <TableHead className="hidden sm:table-cell">Etapa</TableHead>
               <TableHead className="hidden sm:table-cell">Empresa</TableHead>
               <TableHead className="hidden md:table-cell">Fuente</TableHead>
               <TableHead className="hidden md:table-cell">Score</TableHead>
@@ -98,6 +101,19 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
                       {contact.phone || "Sin telefono"}
                     </p>
                   </div>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  {contact.stageId && stageById.get(contact.stageId) ? (
+                    <span className="inline-flex items-center gap-1.5 text-sm">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: stageById.get(contact.stageId)!.color }}
+                      />
+                      {stageById.get(contact.stageId)!.name}
+                    </span>
+                  ) : (
+                    "-"
+                  )}
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   {contact.company || "-"}

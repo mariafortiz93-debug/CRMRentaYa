@@ -5,8 +5,16 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ContactForm } from "./ContactForm";
 import { ActivityForm } from "@/components/activities/ActivityForm";
+import { ContactMethodDialog } from "@/components/pipeline/ContactMethodDialog";
 import {
   ArrowLeft,
   Mail,
@@ -28,9 +36,9 @@ import {
   Bike,
 } from "lucide-react";
 import { formatCurrency, formatDate, formatRelativeDate, cleanPhoneForWhatsApp } from "@/lib/constants";
-import { ACTIVITY_TYPE_CONFIG, SOURCE_LABELS, MOTORCYCLE_LABELS } from "@/lib/constants";
+import { ACTIVITY_TYPE_CONFIG, SOURCE_LABELS, MOTORCYCLE_LABELS, NEXT_ACTION_CONFIG } from "@/lib/constants";
 import { toast } from "sonner";
-import type { ActivityType, LeadSource, MotorcycleInterest } from "@/types";
+import type { ActivityType, LeadSource, MotorcycleInterest, NextAction } from "@/types";
 
 const activityIcons: Record<string, typeof Phone> = {
   call: Phone,
@@ -44,6 +52,7 @@ interface ContactDetailClientProps {
   contact: {
     id: string;
     name: string;
+    stageId: string | null;
     phone: string | null;
     phone2: string | null;
     address: string | null;
@@ -59,6 +68,12 @@ interface ContactDetailClientProps {
     notes: string | null;
     createdAt: number | Date;
   };
+  stages: Array<{
+    id: string;
+    name: string;
+    color: string;
+    nextAction: string | null;
+  }>;
   deals: Array<{
     id: string;
     title: string;
@@ -80,6 +95,7 @@ interface ContactDetailClientProps {
 
 export function ContactDetailClient({
   contact,
+  stages,
   deals,
   activities,
 }: ContactDetailClientProps) {
@@ -87,6 +103,54 @@ export function ContactDetailClient({
   const [showEditForm, setShowEditForm] = useState(false);
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [stageId, setStageId] = useState(contact.stageId);
+  const [pendingStageId, setPendingStageId] = useState<string | null>(null);
+
+  const currentStage = stages.find((s) => s.id === stageId);
+  const nextAction = currentStage?.nextAction as NextAction | null | undefined;
+
+  const applyStageChange = async (newStageId: string, contactMethod?: "whatsapp" | "call") => {
+    const previous = stageId;
+    setStageId(newStageId);
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stageId: newStageId }),
+      });
+      if (!res.ok) throw new Error("Error");
+
+      if (contactMethod) {
+        await fetch("/api/activities", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "call",
+            description:
+              contactMethod === "whatsapp"
+                ? "Contacto inicial via WhatsApp"
+                : "Contacto inicial via llamada telefonica",
+            contactId: contact.id,
+          }),
+        });
+      }
+
+      toast.success("Etapa actualizada");
+      router.refresh();
+    } catch {
+      setStageId(previous);
+      toast.error("Error al cambiar la etapa");
+    }
+  };
+
+  const handleStageChange = (newStageId: string) => {
+    const targetStage = stages.find((s) => s.id === newStageId);
+    if (targetStage?.name.toLowerCase() === "contactado") {
+      setPendingStageId(newStageId);
+      return;
+    }
+    applyStageChange(newStageId);
+  };
 
   const handleCopy = async (value: string, field: string) => {
     try {
@@ -171,6 +235,59 @@ export function ContactDetailClient({
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardContent className="flex flex-col sm:flex-row sm:items-center gap-4 pt-6">
+          <div className="flex-1 space-y-1.5">
+            <span className="text-xs text-muted-foreground">Etapa actual</span>
+            <Select
+              value={stageId ?? undefined}
+              onValueChange={(v) => v && handleStageChange(v)}
+            >
+              <SelectTrigger className="cursor-pointer w-full sm:w-64">
+                <SelectValue placeholder="Sin etapa" />
+              </SelectTrigger>
+              <SelectContent>
+                {stages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {nextAction && (
+            <div className="space-y-1.5">
+              <span className="text-xs text-muted-foreground">Siguiente paso</span>
+              {contact.phone ? (
+                <a
+                  href={
+                    nextAction === "whatsapp"
+                      ? `https://wa.me/${cleanPhoneForWhatsApp(contact.phone)}`
+                      : `tel:${contact.phone}`
+                  }
+                  target={nextAction === "whatsapp" ? "_blank" : undefined}
+                  rel={nextAction === "whatsapp" ? "noopener noreferrer" : undefined}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                    nextAction === "whatsapp"
+                      ? "bg-green-50 text-green-700 hover:bg-green-100"
+                      : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  }`}
+                >
+                  {nextAction === "whatsapp" ? (
+                    <MessageCircle className="h-4 w-4" />
+                  ) : (
+                    <Phone className="h-4 w-4" />
+                  )}
+                  {NEXT_ACTION_CONFIG[nextAction].label}
+                </a>
+              ) : (
+                <p className="text-sm">{NEXT_ACTION_CONFIG[nextAction].label}</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Contact info */}
@@ -413,6 +530,16 @@ export function ContactDetailClient({
           router.refresh();
         }}
         preselectedContactId={contact.id}
+      />
+
+      <ContactMethodDialog
+        open={!!pendingStageId}
+        onClose={() => setPendingStageId(null)}
+        onSelect={(method) => {
+          const target = pendingStageId;
+          setPendingStageId(null);
+          if (target) applyStageChange(target, method);
+        }}
       />
     </div>
   );
