@@ -47,9 +47,11 @@ interface ContactFormProps {
   initialData?: Partial<ContactFormData> & { id?: string };
   /** If set, after a successful edit the contact is moved to this stage. */
   advanceToStageId?: string | null;
+  /** Called after a successful save (and advance). */
+  onSaved?: () => void;
 }
 
-export function ContactForm({ open, onClose, initialData, advanceToStageId }: ContactFormProps) {
+export function ContactForm({ open, onClose, initialData, advanceToStageId, onSaved }: ContactFormProps) {
   const router = useRouter();
   const isEditing = !!initialData?.id;
 
@@ -104,6 +106,7 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId }: Co
       } else {
         toast.success(isEditing ? "Contacto actualizado" : "Contacto creado");
       }
+      onSaved?.();
       reset();
       onClose();
       router.refresh();

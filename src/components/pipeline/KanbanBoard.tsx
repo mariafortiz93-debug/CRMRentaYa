@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -15,20 +16,62 @@ import {
 import { KanbanColumn } from "./KanbanColumn";
 import { ContactCard } from "./ContactCard";
 import { ContactMethodDialog } from "./ContactMethodDialog";
+import { ScheduleVisitDialog } from "./ScheduleVisitDialog";
+import { ContactForm } from "@/components/contacts/ContactForm";
 import { toast } from "sonner";
-import type { PipelineColumn } from "@/types";
+import type { PipelineColumn, Contact } from "@/types";
 
 interface KanbanBoardProps {
   initialColumns: PipelineColumn[];
 }
 
+function stagePrimaryAction(name: string): "diligenciar" | "agendar" | null {
+  const n = name.toLowerCase();
+  if (n === "registro online") return "diligenciar";
+  if (n === "agendar visita" || n === "visitas reagendadas") return "agendar";
+  return null;
+}
+
 export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
+  const router = useRouter();
   const [columns, setColumns] = useState(initialColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<{ contactId: string; stageId: string } | null>(
     null
   );
+  const [diligenciarContact, setDiligenciarContact] = useState<Contact | null>(null);
+  const [agendarContact, setAgendarContact] = useState<Contact | null>(null);
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
+
+  const agendarStageId =
+    columns.find((c) => c.name.toLowerCase() === "agendar visita")?.id ?? null;
+
+  const moveContactLocal = (contactId: string, toStageName: string) => {
+    setColumns((prev) => {
+      const target = prev.find((c) => c.name.toLowerCase() === toStageName.toLowerCase());
+      if (!target) return prev;
+      const contact = prev.flatMap((c) => c.contacts).find((c) => c.id === contactId);
+      if (!contact) return prev;
+      return prev.map((col) => {
+        if (col.contacts.some((c) => c.id === contactId)) {
+          return { ...col, contacts: col.contacts.filter((c) => c.id !== contactId) };
+        }
+        if (col.id === target.id) {
+          return { ...col, contacts: [...col.contacts, { ...contact, stageId: target.id }] };
+        }
+        return col;
+      });
+    });
+  };
+
+  const handleCardAction = (contactId: string) => {
+    const contact = columns.flatMap((c) => c.contacts).find((c) => c.id === contactId);
+    if (!contact) return;
+    const column = columns.find((c) => c.contacts.some((x) => x.id === contactId));
+    const action = column ? stagePrimaryAction(column.name) : null;
+    if (action === "diligenciar") setDiligenciarContact(contact);
+    else if (action === "agendar") setAgendarContact(contact);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -160,6 +203,8 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
             name={column.name}
             color={column.color}
             nextAction={column.nextAction}
+            primaryAction={stagePrimaryAction(column.name)}
+            onCardAction={handleCardAction}
             contacts={column.contacts.map((c) => ({
               id: c.id,
               name: c.name,
@@ -196,6 +241,47 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
           if (move) commitMove(move.contactId, move.stageId, method);
         }}
       />
+
+      {diligenciarContact && (
+        <ContactForm
+          open={!!diligenciarContact}
+          advanceToStageId={agendarStageId}
+          onSaved={() => moveContactLocal(diligenciarContact.id, "Agendar Visita")}
+          onClose={() => {
+            setDiligenciarContact(null);
+            router.refresh();
+          }}
+          initialData={{
+            id: diligenciarContact.id,
+            name: diligenciarContact.name,
+            phone: diligenciarContact.phone || "",
+            phone2: diligenciarContact.phone2 || "",
+            address: diligenciarContact.address || "",
+            city: diligenciarContact.city || "",
+            neighborhood: diligenciarContact.neighborhood || "",
+            identificationNumber: diligenciarContact.identificationNumber || "",
+            expeditionCity: diligenciarContact.expeditionCity || "",
+            companionName: diligenciarContact.companionName || "",
+            motorcycleInterest: diligenciarContact.motorcycleInterest || "boxer_ct100_ks",
+            company: diligenciarContact.company || "",
+            source: diligenciarContact.source,
+            notes: diligenciarContact.notes || "",
+          }}
+        />
+      )}
+
+      {agendarContact && (
+        <ScheduleVisitDialog
+          open={!!agendarContact}
+          contactId={agendarContact.id}
+          contactNeighborhood={agendarContact.neighborhood}
+          onScheduled={() => moveContactLocal(agendarContact.id, "Visita")}
+          onClose={() => {
+            setAgendarContact(null);
+            router.refresh();
+          }}
+        />
+      )}
     </DndContext>
   );
 }

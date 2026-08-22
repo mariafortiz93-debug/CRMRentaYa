@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { SOURCE_LABELS, cleanPhoneForWhatsApp } from "@/lib/constants";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone, MessageCircle } from "lucide-react";
+import { Phone, MessageCircle, FileText, Calendar } from "lucide-react";
 import type { LeadSource, NextAction } from "@/types";
 
 interface ContactCardProps {
@@ -13,9 +13,20 @@ interface ContactCardProps {
   phone: string | null;
   source: string;
   nextAction: NextAction | null;
+  /** Primary action for this stage, e.g. "diligenciar" or "agendar". */
+  primaryAction?: "diligenciar" | "agendar" | null;
+  onPrimaryAction?: () => void;
 }
 
-export function ContactCard({ id, name, phone, source, nextAction }: ContactCardProps) {
+export function ContactCard({
+  id,
+  name,
+  phone,
+  source,
+  nextAction,
+  primaryAction,
+  onPrimaryAction,
+}: ContactCardProps) {
   const {
     attributes,
     listeners,
@@ -68,6 +79,29 @@ export function ContactCard({ id, name, phone, source, nextAction }: ContactCard
             </a>
           )}
         </div>
+
+        {primaryAction && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPrimaryAction?.();
+            }}
+            className="w-full flex items-center justify-center gap-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium py-1.5 cursor-pointer hover:opacity-90"
+          >
+            {primaryAction === "diligenciar" ? (
+              <>
+                <FileText className="h-3.5 w-3.5" />
+                Diligenciar formulario
+              </>
+            ) : (
+              <>
+                <Calendar className="h-3.5 w-3.5" />
+                Agendar visita
+              </>
+            )}
+          </button>
+        )}
       </div>
     </Card>
   );

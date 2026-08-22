@@ -20,10 +20,20 @@ interface KanbanColumnProps {
   name: string;
   color: string;
   nextAction: NextAction | null;
+  primaryAction?: "diligenciar" | "agendar" | null;
+  onCardAction?: (contactId: string) => void;
   contacts: ContactCardData[];
 }
 
-export function KanbanColumn({ id, name, color, nextAction, contacts }: KanbanColumnProps) {
+export function KanbanColumn({
+  id,
+  name,
+  color,
+  nextAction,
+  primaryAction,
+  onCardAction,
+  contacts,
+}: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
   return (
@@ -50,7 +60,15 @@ export function KanbanColumn({ id, name, color, nextAction, contacts }: KanbanCo
       >
         <div className="flex-1 p-2 space-y-2 min-h-[100px] overflow-y-auto">
           {contacts.map((contact) => (
-            <ContactCard key={contact.id} {...contact} nextAction={nextAction} />
+            <ContactCard
+              key={contact.id}
+              {...contact}
+              nextAction={nextAction}
+              primaryAction={primaryAction}
+              onPrimaryAction={
+                onCardAction ? () => onCardAction(contact.id) : undefined
+              }
+            />
           ))}
         </div>
       </SortableContext>
