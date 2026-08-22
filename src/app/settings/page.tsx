@@ -182,10 +182,10 @@ export default function SettingsPage() {
                 <p className="text-muted-foreground mb-1">Ejemplo:</p>
                 <p>curl -X POST {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/api/webhook \</p>
                 <p className="pl-4">-H &quot;Content-Type: application/json&quot; \</p>
-                <p className="pl-4">-d &apos;{`{"name":"Juan","email":"j@test.com","phone":"555-1234"}`}&apos;</p>
+                <p className="pl-4">-d &apos;{`{"name":"Juan","phone":"555-1234"}`}&apos;</p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Soporta campos en espanol e ingles: name/nombre, email/correo, phone/telefono, company/empresa, notes/notas
+                Soporta campos en espanol e ingles: name/nombre, phone/telefono, company/empresa, notes/notas
               </p>
             </div>
           </CardContent>

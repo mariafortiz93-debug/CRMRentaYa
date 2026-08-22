@@ -1,26 +1,18 @@
-import type { Temperature, LeadSource, ActivityType } from "@/types";
-
-export const TEMPERATURE_CONFIG: Record<
-  Temperature,
-  { label: string; color: string; bgColor: string }
-> = {
-  cold: { label: "Frio", color: "#64748b", bgColor: "#f1f5f9" },
-  warm: { label: "Tibio", color: "#ea580c", bgColor: "#fff7ed" },
-  hot: { label: "Caliente", color: "#dc2626", bgColor: "#fef2f2" },
-};
+import type { LeadSource, ActivityType, MotorcycleInterest } from "@/types";
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
-  website: "Sitio web",
-  whatsapp: "WhatsApp",
+  redes: "Redes sociales",
   referido: "Referido",
-  redes_sociales: "Redes sociales",
-  llamada_fria: "Llamada fria",
-  email: "Email",
-  formulario: "Formulario",
-  evento: "Evento",
+  volanteo: "Volanteo",
+  concesionario: "Concesionario",
   import: "Importado",
   webhook: "Webhook",
   otro: "Otro",
+};
+
+export const MOTORCYCLE_LABELS: Record<MotorcycleInterest, string> = {
+  boxer_ct100_ks: "Boxer CT100 KS",
+  boxer_ct100_es: "Boxer CT100 ES",
 };
 
 export const ACTIVITY_TYPE_CONFIG: Record<

@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Briefcase, DollarSign, Flame } from "lucide-react";
+import { Users, Briefcase, DollarSign } from "lucide-react";
 import { formatCurrency } from "@/lib/constants";
 import type { DashboardStats } from "@/types";
 
@@ -32,17 +32,10 @@ export function KPICards({ stats }: KPICardsProps) {
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
-    {
-      title: "Leads Calientes",
-      value: stats.hotLeads.toString(),
-      icon: Flame,
-      color: "text-red-600",
-      bgColor: "bg-red-50",
-    },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {cards.map((card) => (
         <Card key={card.title}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">

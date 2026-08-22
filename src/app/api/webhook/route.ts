@@ -12,11 +12,6 @@ const FIELD_MAP: Record<string, string> = {
   fullname: "name",
   first_name: "name",
   nombre_completo: "name",
-  // Email
-  email: "email",
-  correo: "email",
-  email_address: "email",
-  correo_electronico: "email",
   // Phone
   phone: "phone",
   telefono: "phone",
@@ -107,7 +102,7 @@ export async function POST(request: NextRequest) {
       {
         error: "Campo 'name' o 'nombre' es requerido",
         received: Object.keys(payload),
-        hint: "Campos soportados: name, nombre, full_name, email, correo, phone, telefono, company, empresa, notes, notas, message",
+        hint: "Campos soportados: name, nombre, full_name, phone, telefono, company, empresa, notes, notas, message",
       },
       { status: 400 }
     );
@@ -119,11 +114,9 @@ export async function POST(request: NextRequest) {
       .insert(contacts)
       .values({
         name: fields.name,
-        email: fields.email || null,
         phone: fields.phone || null,
         company: fields.company || null,
         source: "webhook",
-        temperature: "cold",
         score: 0,
         notes: fields.notes || null,
         createdAt: now,
@@ -148,7 +141,7 @@ export async function POST(request: NextRequest) {
         contact: {
           id: contact.id,
           name: contact.name,
-          email: contact.email,
+          phone: contact.phone,
           source: contact.source,
         },
       },

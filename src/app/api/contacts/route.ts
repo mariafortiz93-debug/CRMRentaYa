@@ -6,7 +6,6 @@ import { eq, like, or, desc } from "drizzle-orm";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
-  const temperature = searchParams.get("temperature");
   const source = searchParams.get("source");
 
   let query = db.select().from(contacts);
@@ -15,14 +14,11 @@ export async function GET(request: NextRequest) {
     query = query.where(
       or(
         like(contacts.name, `%${search}%`),
-        like(contacts.email, `%${search}%`),
+        like(contacts.phone, `%${search}%`),
+        like(contacts.identificationNumber, `%${search}%`),
         like(contacts.company, `%${search}%`)
       )
     ) as typeof query;
-  }
-
-  if (temperature) {
-    query = query.where(eq(contacts.temperature, temperature)) as typeof query;
   }
 
   if (source) {
@@ -41,8 +37,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { name, email, phone, company, source, temperature, score, notes } =
-    body;
+  const {
+    name,
+    phone,
+    phone2,
+    address,
+    city,
+    neighborhood,
+    identificationNumber,
+    expeditionCity,
+    companionName,
+    motorcycleInterest,
+    company,
+    source,
+    score,
+    notes,
+  } = body;
 
   if (!name) {
     return NextResponse.json(
@@ -57,11 +67,17 @@ export async function POST(request: NextRequest) {
       .insert(contacts)
       .values({
         name,
-        email: email || null,
         phone: phone || null,
+        phone2: phone2 || null,
+        address: address || null,
+        city: city || null,
+        neighborhood: neighborhood || null,
+        identificationNumber: identificationNumber || null,
+        expeditionCity: expeditionCity || null,
+        companionName: companionName || null,
+        motorcycleInterest: motorcycleInterest || null,
         company: company || null,
         source: source || "otro",
-        temperature: temperature || "cold",
         score: score || 0,
         notes: notes || null,
         createdAt: now,

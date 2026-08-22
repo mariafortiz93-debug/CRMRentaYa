@@ -12,12 +12,11 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Search, Users, Download } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import { SOURCE_LABELS } from "@/lib/constants";
-import type { Contact, Temperature, LeadSource } from "@/types";
+import type { Contact, LeadSource } from "@/types";
 
 interface ContactsTableProps {
   contacts: Contact[];
@@ -26,18 +25,15 @@ interface ContactsTableProps {
 export function ContactsTable({ contacts }: ContactsTableProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [filterTemp, setFilterTemp] = useState<Temperature | "">("");
 
   const filtered = contacts.filter((c) => {
-    const matchesSearch =
+    return (
       !search ||
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email?.toLowerCase().includes(search.toLowerCase()) ||
-      c.company?.toLowerCase().includes(search.toLowerCase());
-
-    const matchesTemp = !filterTemp || c.temperature === filterTemp;
-
-    return matchesSearch && matchesTemp;
+      c.phone?.toLowerCase().includes(search.toLowerCase()) ||
+      c.identificationNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      c.company?.toLowerCase().includes(search.toLowerCase())
+    );
   });
 
   if (contacts.length === 0) {
@@ -58,24 +54,13 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nombre, email o empresa..."
+            placeholder="Buscar por nombre, telefono o empresa..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
         <div className="flex gap-2">
-          {(["", "hot", "warm", "cold"] as const).map((temp) => (
-            <Button
-              key={temp}
-              variant={filterTemp === temp ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterTemp(temp)}
-              className="cursor-pointer"
-            >
-              {temp === "" ? "Todos" : temp === "hot" ? "Caliente" : temp === "warm" ? "Tibio" : "Frio"}
-            </Button>
-          ))}
           <Button
             variant="outline"
             size="sm"
@@ -95,7 +80,6 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
               <TableHead>Nombre</TableHead>
               <TableHead className="hidden sm:table-cell">Empresa</TableHead>
               <TableHead className="hidden md:table-cell">Fuente</TableHead>
-              <TableHead>Temperatura</TableHead>
               <TableHead className="hidden md:table-cell">Score</TableHead>
               <TableHead className="hidden lg:table-cell">Fecha</TableHead>
             </TableRow>
@@ -111,7 +95,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
                   <div>
                     <p className="font-medium">{contact.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {contact.email || "Sin email"}
+                      {contact.phone || "Sin telefono"}
                     </p>
                   </div>
                 </TableCell>
@@ -120,9 +104,6 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
                 </TableCell>
                 <TableCell className="hidden md:table-cell text-sm">
                   {SOURCE_LABELS[contact.source as LeadSource] || contact.source}
-                </TableCell>
-                <TableCell>
-                  <StatusBadge temperature={contact.temperature as Temperature} size="sm" />
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
                   <div className="flex items-center gap-1">

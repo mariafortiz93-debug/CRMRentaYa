@@ -8,11 +8,17 @@ Eres un asistente que ayuda a agregar leads al CRM de forma conversacional.
 
 2. Con la informacion proporcionada, extrae:
    - **name**: Nombre completo del contacto
-   - **email**: Email (si se proporciono)
    - **phone**: Telefono (si se proporciono)
-   - **company**: Empresa/organizacion
-   - **source**: Fuente del lead (website, whatsapp, referido, redes_sociales, llamada_fria, email, formulario, evento, otro)
-   - **temperature**: Basado en la descripcion, clasifica como "cold", "warm", o "hot"
+   - **phone2**: Telefono 2 / WhatsApp (si se proporciono)
+   - **address**: Direccion
+   - **city**: Ciudad
+   - **neighborhood**: Barrio
+   - **identificationNumber**: Numero de identificacion
+   - **expeditionCity**: Ciudad de expedicion del documento
+   - **companionName**: Nombre del acompañante (si aplica)
+   - **motorcycleInterest**: Moto de interes (boxer_ct100_ks o boxer_ct100_es)
+   - **company**: Empresa/organizacion (si aplica)
+   - **source**: Fuente del lead (redes, referido, volanteo, concesionario, otro)
    - **notes**: Cualquier informacion adicional relevante
 
 3. Si falta informacion critica (al menos nombre), pregunta por ella.
@@ -25,11 +31,17 @@ curl -s -X POST http://localhost:3000/api/contacts \
   -H "Content-Type: application/json" \
   -d '{
     "name": "...",
-    "email": "...",
     "phone": "...",
+    "phone2": "...",
+    "address": "...",
+    "city": "...",
+    "neighborhood": "...",
+    "identificationNumber": "...",
+    "expeditionCity": "...",
+    "companionName": "...",
+    "motorcycleInterest": "...",
     "company": "...",
     "source": "...",
-    "temperature": "...",
     "notes": "..."
   }'
 ```

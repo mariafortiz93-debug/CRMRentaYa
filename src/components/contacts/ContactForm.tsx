@@ -25,11 +25,17 @@ import { toast } from "sonner";
 
 const contactSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
-  email: z.string().email("Email invalido").or(z.literal("")),
   phone: z.string(),
+  phone2: z.string(),
+  address: z.string(),
+  city: z.string(),
+  neighborhood: z.string(),
+  identificationNumber: z.string(),
+  expeditionCity: z.string(),
+  companionName: z.string(),
+  motorcycleInterest: z.string(),
   company: z.string(),
   source: z.string(),
-  temperature: z.enum(["cold", "warm", "hot"]),
   notes: z.string(),
 });
 
@@ -56,11 +62,17 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
     resolver: zodResolver(contactSchema),
     defaultValues: {
       name: initialData?.name || "",
-      email: initialData?.email || "",
       phone: initialData?.phone || "",
+      phone2: initialData?.phone2 || "",
+      address: initialData?.address || "",
+      city: initialData?.city || "",
+      neighborhood: initialData?.neighborhood || "",
+      identificationNumber: initialData?.identificationNumber || "",
+      expeditionCity: initialData?.expeditionCity || "",
+      companionName: initialData?.companionName || "",
+      motorcycleInterest: initialData?.motorcycleInterest || "boxer_ct100_ks",
       company: initialData?.company || "",
       source: initialData?.source || "otro",
-      temperature: initialData?.temperature || "cold",
       notes: initialData?.notes || "",
     },
   });
@@ -93,7 +105,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Contacto" : "Nuevo Contacto"}
@@ -111,13 +123,45 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" {...register("email")} placeholder="correo@ejemplo.com" />
+              <Label htmlFor="phone">Telefono</Label>
+              <Input id="phone" {...register("phone")} placeholder="+57 300 1234567" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Telefono</Label>
-              <Input id="phone" {...register("phone")} placeholder="+52 55 1234 5678" />
+              <Label htmlFor="phone2">Telefono 2 (WhatsApp)</Label>
+              <Input id="phone2" {...register("phone2")} placeholder="+57 300 1234567" />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="address">Direccion</Label>
+            <Input id="address" {...register("address")} placeholder="Calle 123 #45-67" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="city">Ciudad</Label>
+              <Input id="city" {...register("city")} placeholder="Ciudad" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="neighborhood">Barrio</Label>
+              <Input id="neighborhood" {...register("neighborhood")} placeholder="Barrio" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="identificationNumber">No. de identificacion</Label>
+              <Input id="identificationNumber" {...register("identificationNumber")} placeholder="Cedula" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expeditionCity">Ciudad de expedicion</Label>
+              <Input id="expeditionCity" {...register("expeditionCity")} placeholder="Ciudad de expedicion" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="companionName">Nombre del acompañante</Label>
+            <Input id="companionName" {...register("companionName")} placeholder="Nombre del acompañante" />
           </div>
 
           <div className="space-y-2">
@@ -127,7 +171,7 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Fuente</Label>
+              <Label>Como supo de la empresa</Label>
               <Select
                 value={watch("source")}
                 onValueChange={(v) => v && setValue("source", v)}
@@ -136,35 +180,26 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="website">Sitio web</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  <SelectItem value="redes">Redes sociales</SelectItem>
                   <SelectItem value="referido">Referido</SelectItem>
-                  <SelectItem value="redes_sociales">Redes sociales</SelectItem>
-                  <SelectItem value="llamada_fria">Llamada fria</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="formulario">Formulario</SelectItem>
-                  <SelectItem value="evento">Evento</SelectItem>
-                  <SelectItem value="import">Importado</SelectItem>
-                  <SelectItem value="webhook">Webhook</SelectItem>
+                  <SelectItem value="volanteo">Volanteo</SelectItem>
+                  <SelectItem value="concesionario">Concesionario</SelectItem>
                   <SelectItem value="otro">Otro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Temperatura</Label>
+              <Label>Moto de interes</Label>
               <Select
-                value={watch("temperature")}
-                onValueChange={(v) =>
-                  v && setValue("temperature", v as "cold" | "warm" | "hot")
-                }
+                value={watch("motorcycleInterest")}
+                onValueChange={(v) => v && setValue("motorcycleInterest", v)}
               >
                 <SelectTrigger className="cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cold">Frio</SelectItem>
-                  <SelectItem value="warm">Tibio</SelectItem>
-                  <SelectItem value="hot">Caliente</SelectItem>
+                  <SelectItem value="boxer_ct100_ks">Boxer CT100 KS</SelectItem>
+                  <SelectItem value="boxer_ct100_es">Boxer CT100 ES</SelectItem>
                 </SelectContent>
               </Select>
             </div>

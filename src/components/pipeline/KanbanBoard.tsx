@@ -139,9 +139,6 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
               title: d.title,
               value: d.value,
               contactName: d.contactName || (d.contact?.name ?? null),
-              contactTemperature:
-                d.contactTemperature ||
-                (d.contact?.temperature ?? null),
               probability: d.probability,
             }))}
           />
@@ -157,10 +154,6 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
             contactName={
               activeDeal.contactName ||
               (activeDeal.contact?.name ?? null)
-            }
-            contactTemperature={
-              activeDeal.contactTemperature ||
-              (activeDeal.contact?.temperature ?? null)
             }
             probability={activeDeal.probability}
           />

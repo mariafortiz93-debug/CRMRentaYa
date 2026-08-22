@@ -30,12 +30,12 @@ Si no tiene el MCP server, explica como configurarlo.
 
 #### Gmail → CRM
 1. Usa el MCP de Gmail para buscar emails recientes con palabras clave del negocio
-2. Para cada email relevante, extrae: nombre del remitente, email, empresa (del dominio), contenido relevante
+2. Para cada email relevante, extrae: nombre del remitente, telefono (si aparece en la firma), empresa (del dominio), contenido relevante
 3. Crea el contacto via API:
 ```bash
 curl -s -X POST http://localhost:3000/api/webhook \
   -H "Content-Type: application/json" \
-  -d '{"name":"NOMBRE","email":"EMAIL","company":"EMPRESA","notes":"Contenido del email..."}'
+  -d '{"name":"NOMBRE","phone":"TELEFONO","company":"EMPRESA","notes":"Contenido del email..."}'
 ```
 4. Confirma cada contacto creado con el usuario
 

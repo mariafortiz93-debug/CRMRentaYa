@@ -20,13 +20,13 @@ curl -s http://localhost:3000/api/activities
 - Lista de seguimientos programados para hoy
 - Seguimientos vencidos (pendientes de dias anteriores)
 
-**Deals Calientes**
+**Deals Prioritarios**
 - Deals con alta probabilidad que necesitan atencion
 - Deals con fecha de cierre estimada esta semana
 
 **Leads Nuevos**
 - Contactos agregados recientemente sin actividad
-- Leads calientes sin deal asociado
+- Leads con score alto sin deal asociado
 
 **Metricas Rapidas**
 - Deals ganados esta semana/mes

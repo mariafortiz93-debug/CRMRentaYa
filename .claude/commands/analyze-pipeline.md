@@ -32,9 +32,9 @@ curl -s http://localhost:3000/api/followups | python3 -m json.tool
 - Deals con alta probabilidad pero sin actividad reciente
 - Deals proximos a vencer su fecha estimada de cierre
 
-### Leads por Temperatura
-- Distribucion de contactos frio/tibio/caliente
-- Leads calientes sin deals asociados
+### Leads por Fuente y Score
+- Distribucion de contactos por fuente (redes, referido, volanteo, concesionario, otro)
+- Leads con score alto sin deals asociados
 - Leads con score alto pero sin seguimiento
 
 ### Recomendaciones

@@ -13,11 +13,17 @@ head -20 <ruta_del_archivo>
 
 3. Analiza las columnas y mapea a los campos del CRM:
    - name (requerido)
-   - email
    - phone
+   - phone2
+   - address
+   - city
+   - neighborhood
+   - identificationNumber
+   - expeditionCity
+   - companionName
+   - motorcycleInterest (boxer_ct100_ks / boxer_ct100_es)
    - company
-   - source
-   - temperature (cold/warm/hot)
+   - source (redes, referido, volanteo, concesionario, otro)
    - notes
 
 4. Muestra al usuario el mapeo propuesto y pide confirmacion.
@@ -26,7 +32,7 @@ head -20 <ruta_del_archivo>
 ```bash
 curl -s -X POST http://localhost:3000/api/contacts \
   -H "Content-Type: application/json" \
-  -d '{"name":"...","email":"...","phone":"...","company":"...","source":"...","temperature":"cold","notes":"..."}'
+  -d '{"name":"...","phone":"...","company":"...","source":"...","notes":"..."}'
 ```
 
 Alternativamente, usa el endpoint de importacion masiva:
@@ -44,5 +50,4 @@ curl -s -X POST http://localhost:3000/api/import \
 ## Notas
 - Soporta CSV con separadores: coma, punto y coma, tab
 - Detecta encoding automaticamente
-- Si no hay columna de temperatura, clasifica todos como "cold"
 - Si no hay columna de source, usa "import" como fuente

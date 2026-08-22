@@ -23,7 +23,6 @@ export async function GET() {
       createdAt: deals.createdAt,
       updatedAt: deals.updatedAt,
       contactName: contacts.name,
-      contactTemperature: contacts.temperature,
     })
     .from(deals)
     .leftJoin(contacts, eq(deals.contactId, contacts.id))

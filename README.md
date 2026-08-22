@@ -69,22 +69,19 @@ Y personaliza todo automaticamente.
 ## Funcionalidades
 
 ### Dashboard
-Panel principal con KPIs en tiempo real: contactos totales, deals activos, valor en pipeline, leads calientes. Graficos de pipeline y actividad reciente.
+Panel principal con KPIs en tiempo real: contactos totales, deals activos, valor en pipeline, leads por fuente. Graficos de pipeline y actividad reciente.
 
 ### Pipeline Kanban
-Tablero visual drag & drop. Arrastra deals entre etapas. Cada tarjeta muestra valor, contacto y temperatura del lead.
+Tablero visual drag & drop. Arrastra deals entre etapas. Cada tarjeta muestra valor y contacto.
 
 ### Gestion de Contactos
-Tabla con busqueda, filtros por temperatura (frio/tibio/caliente) y fuente. Score de cada lead. Click para ver detalle completo con historial.
+Tabla con busqueda y filtro por fuente. Score de cada lead. Click para ver detalle completo con historial.
 
 ### Acciones Rapidas
 Botones de WhatsApp, llamada, y copiar directamente en cada contacto. Un click para abrir chat de WhatsApp o iniciar llamada.
 
 ### Seguimiento de Actividades
 Timeline de todas las interacciones: llamadas, emails, reuniones, notas. Sistema de follow-ups con alertas para seguimientos vencidos.
-
-### Clasificacion de Leads
-Dos modos: reglas automaticas (sin API key) o IA con Claude (opcional). Score de 0-100 y temperatura automatica.
 
 ### Webhook
 Recibe leads automaticamente desde formularios web (Typeform, Tally, Google Forms, Zapier). Soporta campos en espanol e ingles.
@@ -96,7 +93,7 @@ Descarga tus contactos y deals como CSV con un click. Compatible con Excel.
 Banner en el dashboard para seguimientos vencidos. Notificaciones del navegador opcionales cada 5 minutos.
 
 ### Email Digest
-Resumen diario por correo con seguimientos pendientes, leads calientes y metricas. Requiere Resend (gratis).
+Resumen diario por correo con seguimientos pendientes y metricas. Requiere Resend (gratis).
 
 ## Comandos de Claude Code
 

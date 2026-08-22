@@ -52,7 +52,6 @@ export async function POST() {
     (a) => a.scheduledAt && (typeof a.scheduledAt === "number" ? a.scheduledAt : Math.floor(a.scheduledAt.getTime() / 1000)) < now
   );
 
-  const hotLeads = allContacts.filter((c) => c.temperature === "hot");
   const activeDeals = allDeals.filter((d) => {
     const stage = stages.find((s) => s.id === d.stageId);
     return stage && !stage.isWon && !stage.isLost;
@@ -90,13 +89,6 @@ export async function POST() {
           <div style="font-size: 12px; color: #64748b;">En pipeline</div>
         </div>
       </div>
-
-      ${hotLeads.length > 0 ? `
-        <h3 style="color: #1e293b; font-size: 14px;">Leads calientes (${hotLeads.length})</h3>
-        <ul style="color: #334155; font-size: 14px; padding-left: 20px;">
-          ${hotLeads.map((c) => `<li>${c.name}${c.company ? ` — ${c.company}` : ""}</li>`).join("")}
-        </ul>
-      ` : ""}
 
       <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
       <p style="color: #94a3b8; font-size: 12px; text-align: center;">
@@ -136,7 +128,6 @@ export async function POST() {
       sentTo: email,
       summary: {
         overdue: overdue.length,
-        hotLeads: hotLeads.length,
         activeDeals: activeDeals.length,
         pipelineValue,
       },

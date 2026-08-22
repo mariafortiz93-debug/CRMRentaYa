@@ -70,11 +70,19 @@ export async function PUT(
   // Only allow updating specific fields
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (body.name !== undefined) updateData.name = body.name;
-  if (body.email !== undefined) updateData.email = body.email;
   if (body.phone !== undefined) updateData.phone = body.phone;
+  if (body.phone2 !== undefined) updateData.phone2 = body.phone2;
+  if (body.address !== undefined) updateData.address = body.address;
+  if (body.city !== undefined) updateData.city = body.city;
+  if (body.neighborhood !== undefined) updateData.neighborhood = body.neighborhood;
+  if (body.identificationNumber !== undefined)
+    updateData.identificationNumber = body.identificationNumber;
+  if (body.expeditionCity !== undefined) updateData.expeditionCity = body.expeditionCity;
+  if (body.companionName !== undefined) updateData.companionName = body.companionName;
+  if (body.motorcycleInterest !== undefined)
+    updateData.motorcycleInterest = body.motorcycleInterest;
   if (body.company !== undefined) updateData.company = body.company;
   if (body.source !== undefined) updateData.source = body.source;
-  if (body.temperature !== undefined) updateData.temperature = body.temperature;
   if (body.score !== undefined) updateData.score = Math.max(0, Math.min(100, body.score));
   if (body.notes !== undefined) updateData.notes = body.notes;
 

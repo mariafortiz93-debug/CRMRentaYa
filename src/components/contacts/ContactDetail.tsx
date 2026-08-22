@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ContactForm } from "./ContactForm";
 import { ActivityForm } from "@/components/activities/ActivityForm";
 import {
@@ -23,11 +22,15 @@ import {
   MessageCircle,
   Copy,
   Check,
+  MapPin,
+  IdCard,
+  UserPlus,
+  Bike,
 } from "lucide-react";
 import { formatCurrency, formatDate, formatRelativeDate, cleanPhoneForWhatsApp } from "@/lib/constants";
-import { ACTIVITY_TYPE_CONFIG, SOURCE_LABELS } from "@/lib/constants";
+import { ACTIVITY_TYPE_CONFIG, SOURCE_LABELS, MOTORCYCLE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
-import type { Temperature, ActivityType, LeadSource } from "@/types";
+import type { ActivityType, LeadSource, MotorcycleInterest } from "@/types";
 
 const activityIcons: Record<string, typeof Phone> = {
   call: Phone,
@@ -41,11 +44,17 @@ interface ContactDetailClientProps {
   contact: {
     id: string;
     name: string;
-    email: string | null;
     phone: string | null;
+    phone2: string | null;
+    address: string | null;
+    city: string | null;
+    neighborhood: string | null;
+    identificationNumber: string | null;
+    expeditionCity: string | null;
+    companionName: string | null;
+    motorcycleInterest: string | null;
     company: string | null;
     source: string;
-    temperature: string;
     score: number;
     notes: string | null;
     createdAt: number | Date;
@@ -135,7 +144,6 @@ export function ContactDetailClient({
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">{contact.name}</h1>
-            <StatusBadge temperature={contact.temperature as Temperature} />
           </div>
           <p className="text-muted-foreground">
             Score: {contact.score}/100 &middot;{" "}
@@ -171,25 +179,6 @@ export function ContactDetailClient({
             <CardTitle className="text-base">Informacion</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {contact.email && (
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                <a href={`mailto:${contact.email}`} className="text-primary hover:underline flex-1 truncate">
-                  {contact.email}
-                </a>
-                <button
-                  onClick={() => handleCopy(contact.email!, "email")}
-                  className="p-1 rounded hover:bg-muted cursor-pointer"
-                  title="Copiar email"
-                >
-                  {copiedField === "email" ? (
-                    <Check className="h-3.5 w-3.5 text-green-600" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                </button>
-              </div>
-            )}
             {contact.phone && (
               <div className="flex items-center gap-2 text-sm">
                 <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -223,6 +212,55 @@ export function ContactDetailClient({
                     )}
                   </button>
                 </div>
+              </div>
+            )}
+            {contact.phone2 && (
+              <div className="flex items-center gap-2 text-sm">
+                <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="flex-1">{contact.phone2} (Tel. 2 / WhatsApp)</span>
+                <a
+                  href={`https://wa.me/${cleanPhoneForWhatsApp(contact.phone2)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1 rounded hover:bg-green-50 cursor-pointer"
+                  title="Abrir WhatsApp"
+                >
+                  <MessageCircle className="h-3.5 w-3.5 text-green-600" />
+                </a>
+              </div>
+            )}
+            {(contact.address || contact.city || contact.neighborhood) && (
+              <div className="flex items-start gap-2 text-sm">
+                <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <span>
+                  {[contact.address, contact.neighborhood, contact.city]
+                    .filter(Boolean)
+                    .join(", ")}
+                </span>
+              </div>
+            )}
+            {(contact.identificationNumber || contact.expeditionCity) && (
+              <div className="flex items-center gap-2 text-sm">
+                <IdCard className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>
+                  {contact.identificationNumber || "-"}
+                  {contact.expeditionCity ? ` (exp. ${contact.expeditionCity})` : ""}
+                </span>
+              </div>
+            )}
+            {contact.companionName && (
+              <div className="flex items-center gap-2 text-sm">
+                <UserPlus className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>Acompañante: {contact.companionName}</span>
+              </div>
+            )}
+            {contact.motorcycleInterest && (
+              <div className="flex items-center gap-2 text-sm">
+                <Bike className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>
+                  {MOTORCYCLE_LABELS[contact.motorcycleInterest as MotorcycleInterest] ||
+                    contact.motorcycleInterest}
+                </span>
               </div>
             )}
             {contact.company && (
@@ -353,11 +391,17 @@ export function ContactDetailClient({
         initialData={{
           id: contact.id,
           name: contact.name,
-          email: contact.email || "",
           phone: contact.phone || "",
+          phone2: contact.phone2 || "",
+          address: contact.address || "",
+          city: contact.city || "",
+          neighborhood: contact.neighborhood || "",
+          identificationNumber: contact.identificationNumber || "",
+          expeditionCity: contact.expeditionCity || "",
+          companionName: contact.companionName || "",
+          motorcycleInterest: contact.motorcycleInterest || "boxer_ct100_ks",
           company: contact.company || "",
           source: contact.source,
-          temperature: contact.temperature as "cold" | "warm" | "hot",
           notes: contact.notes || "",
         }}
       />

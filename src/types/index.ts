@@ -1,28 +1,30 @@
-export type Temperature = "cold" | "warm" | "hot";
-
 export type ActivityType = "call" | "email" | "meeting" | "note" | "follow_up";
 
 export type LeadSource =
-  | "website"
-  | "whatsapp"
+  | "redes"
   | "referido"
-  | "redes_sociales"
-  | "llamada_fria"
-  | "email"
-  | "formulario"
-  | "evento"
+  | "volanteo"
+  | "concesionario"
   | "import"
   | "webhook"
   | "otro";
 
+export type MotorcycleInterest = "boxer_ct100_ks" | "boxer_ct100_es";
+
 export interface Contact {
   id: string;
   name: string;
-  email: string | null;
   phone: string | null;
+  phone2: string | null;
+  address: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  identificationNumber: string | null;
+  expeditionCity: string | null;
+  companionName: string | null;
+  motorcycleInterest: string | null;
   company: string | null;
   source: LeadSource;
-  temperature: Temperature;
   score: number;
   notes: string | null;
   createdAt: Date;
@@ -89,7 +91,6 @@ export interface DealWithContact extends Deal {
   contact?: Contact;
   stage?: PipelineStage;
   contactName?: string | null;
-  contactTemperature?: string | null;
 }
 
 export interface ContactWithDeals extends Contact {
@@ -107,5 +108,4 @@ export interface DashboardStats {
   totalPipelineValue: number;
   wonDealsValue: number;
   conversionRate: number;
-  hotLeads: number;
 }

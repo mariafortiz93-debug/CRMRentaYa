@@ -48,6 +48,6 @@ echo "0 8 * * * curl -s -X POST http://localhost:3000/api/digest" | crontab -
 
 El email incluye:
 - Seguimientos vencidos y de hoy
-- Leads calientes sin actividad reciente
+- Leads con score alto sin actividad reciente
 - Deals proximos a cerrar
 - Metricas rapidas (contactos, deals, valor en pipeline)

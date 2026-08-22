@@ -2,9 +2,8 @@ import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { contacts, deals, pipelineStages } from "@/db/schema";
 import { eq, desc, asc } from "drizzle-orm";
-import { formatDate, formatCurrency } from "@/lib/constants";
-import { SOURCE_LABELS } from "@/lib/constants";
-import type { LeadSource } from "@/types";
+import { formatDate, formatCurrency, SOURCE_LABELS, MOTORCYCLE_LABELS } from "@/lib/constants";
+import type { LeadSource, MotorcycleInterest } from "@/types";
 
 function escapeCSV(value: string | null | undefined): string {
   if (value === null || value === undefined) return "";
@@ -35,11 +34,17 @@ export async function GET(request: NextRequest) {
 
     const headers = [
       "Nombre",
-      "Email",
       "Telefono",
+      "Telefono 2",
+      "Direccion",
+      "Ciudad",
+      "Barrio",
+      "No. Identificacion",
+      "Ciudad Expedicion",
+      "Acompañante",
+      "Moto de Interes",
       "Empresa",
       "Fuente",
-      "Temperatura",
       "Score",
       "Notas",
       "Fecha de creacion",
@@ -47,15 +52,17 @@ export async function GET(request: NextRequest) {
 
     const rows = allContacts.map((c) => [
       c.name,
-      c.email || "",
       c.phone || "",
+      c.phone2 || "",
+      c.address || "",
+      c.city || "",
+      c.neighborhood || "",
+      c.identificationNumber || "",
+      c.expeditionCity || "",
+      c.companionName || "",
+      MOTORCYCLE_LABELS[c.motorcycleInterest as MotorcycleInterest] || c.motorcycleInterest || "",
       c.company || "",
       SOURCE_LABELS[c.source as LeadSource] || c.source,
-      c.temperature === "hot"
-        ? "Caliente"
-        : c.temperature === "warm"
-          ? "Tibio"
-          : "Frio",
       String(c.score),
       c.notes || "",
       formatDate(c.createdAt),

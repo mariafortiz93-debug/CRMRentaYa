@@ -34,7 +34,7 @@ npm run mcp          # Iniciar servidor MCP (para Claude Desktop/Web)
 | `/setup` | Personalizar CRM: pipeline, fuentes de leads, industria, idioma, tema |
 | `/add-lead` | Agregar un lead conversacionalmente — describe al prospecto y se crea automaticamente |
 | `/analyze-pipeline` | Analisis completo del pipeline con recomendaciones accionables |
-| `/daily-briefing` | Resumen ejecutivo del dia: follow-ups, deals calientes, prioridades |
+| `/daily-briefing` | Resumen ejecutivo del dia: follow-ups, deals prioritarios, prioridades |
 | `/import-contacts` | Importar contactos desde un archivo CSV |
 | `/customize` | Cambiar configuracion sin reiniciar todo |
 | `/connect` | Conectar CRM con Gmail, Calendar, Sheets, WhatsApp via MCP |
@@ -53,7 +53,7 @@ npm run mcp          # Iniciar servidor MCP (para Claude Desktop/Web)
 - `src/app/` — Paginas y API routes (App Router)
 - `src/components/` — Componentes React organizados por feature
 - `src/db/` — Schema Drizzle, cliente DB, seeder
-- `src/lib/` — Utilidades: claude.ts (AI), scoring.ts, constants.ts
+- `src/lib/` — Utilidades: constants.ts
 - `src/types/` — TypeScript types para entidades CRM
 - `.claude/commands/` — Comandos interactivos (los de la tabla arriba)
 - `mcp/` — Servidor MCP para integracion con Claude Desktop/Web
@@ -61,7 +61,7 @@ npm run mcp          # Iniciar servidor MCP (para Claude Desktop/Web)
 
 ### Modelo de datos
 
-- **Contacts**: Leads con temperatura (frio/tibio/caliente), score, fuente, historial
+- **Contacts**: Leads con score, fuente, historial
 - **Deals**: Oportunidades de venta con valor (en centavos), etapa, probabilidad
 - **Activities**: Interacciones (llamada/email/reunion/nota/follow-up) con fechas
 - **Pipeline Stages**: Etapas configurables del pipeline de ventas
@@ -148,7 +148,6 @@ Agregar a `~/.claude/claude_desktop_config.json`:
 
 ## Variables de entorno
 
-- `ANTHROPIC_API_KEY` — Opcional. Para IA en la interfaz web (clasificacion de leads)
 - `RESEND_API_KEY` — Opcional. Para enviar digest diario por email (resend.com, gratis)
 - `DIGEST_EMAIL` — Opcional. Email donde recibir el digest
 - `DIGEST_FROM` — Opcional. Email remitente del digest (default: onboarding@resend.dev)

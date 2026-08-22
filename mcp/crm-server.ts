@@ -49,17 +49,11 @@ interface MCPMessage {
 const tools = [
   {
     name: "crm_list_contacts",
-    description:
-      "Lista todos los contactos del CRM. Puedes filtrar por temperatura (cold/warm/hot) o buscar por nombre.",
+    description: "Lista todos los contactos del CRM. Puedes buscar por nombre.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        search: { type: "string", description: "Buscar por nombre, email o empresa" },
-        temperature: {
-          type: "string",
-          enum: ["cold", "warm", "hot"],
-          description: "Filtrar por temperatura del lead",
-        },
+        search: { type: "string", description: "Buscar por nombre, telefono o empresa" },
         limit: { type: "number", description: "Limite de resultados (default 50)" },
       },
     },
@@ -82,15 +76,25 @@ const tools = [
       type: "object" as const,
       properties: {
         name: { type: "string", description: "Nombre completo" },
-        email: { type: "string", description: "Email" },
         phone: { type: "string", description: "Telefono" },
+        phone2: { type: "string", description: "Telefono 2 / WhatsApp" },
+        address: { type: "string", description: "Direccion" },
+        city: { type: "string", description: "Ciudad" },
+        neighborhood: { type: "string", description: "Barrio" },
+        identificationNumber: { type: "string", description: "Numero de identificacion" },
+        expeditionCity: { type: "string", description: "Ciudad de expedicion" },
+        companionName: { type: "string", description: "Nombre del acompañante" },
+        motorcycleInterest: {
+          type: "string",
+          enum: ["boxer_ct100_ks", "boxer_ct100_es"],
+          description: "Moto de interes",
+        },
         company: { type: "string", description: "Empresa" },
         source: {
           type: "string",
-          enum: ["website", "whatsapp", "referido", "redes_sociales", "llamada_fria", "email", "formulario", "evento", "import", "webhook", "otro"],
+          enum: ["redes", "referido", "volanteo", "concesionario", "otro"],
           description: "Fuente del lead",
         },
-        temperature: { type: "string", enum: ["cold", "warm", "hot"], description: "Temperatura" },
         notes: { type: "string", description: "Notas" },
       },
       required: ["name"],
@@ -173,7 +177,7 @@ const tools = [
   {
     name: "crm_get_stats",
     description:
-      "Obtiene estadisticas del CRM: total contactos, deals activos, valor en pipeline, leads calientes, tasa de conversion.",
+      "Obtiene estadisticas del CRM: total contactos, deals activos, valor en pipeline, tasa de conversion.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -190,13 +194,9 @@ function handleTool(name: string, args: Record<string, unknown>): unknown {
       const conditions: string[] = [];
 
       if (args.search) {
-        conditions.push("(name LIKE ? OR email LIKE ? OR company LIKE ?)");
+        conditions.push("(name LIKE ? OR phone LIKE ? OR company LIKE ?)");
         const search = `%${args.search}%`;
         params.push(search, search, search);
-      }
-      if (args.temperature) {
-        conditions.push("temperature = ?");
-        params.push(args.temperature);
       }
       if (conditions.length > 0) {
         sql += " WHERE " + conditions.join(" AND ");
@@ -231,16 +231,26 @@ function handleTool(name: string, args: Record<string, unknown>): unknown {
       const id = crypto.randomUUID();
 
       db.prepare(
-        `INSERT INTO contacts (id, name, email, phone, company, source, temperature, score, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
+        `INSERT INTO contacts (
+           id, name, phone, phone2, address, city, neighborhood,
+           identification_number, expedition_city, companion_name, motorcycle_interest,
+           company, source, score, notes, created_at, updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
       ).run(
         id,
         args.name,
-        args.email || null,
         args.phone || null,
+        args.phone2 || null,
+        args.address || null,
+        args.city || null,
+        args.neighborhood || null,
+        args.identificationNumber || null,
+        args.expeditionCity || null,
+        args.companionName || null,
+        args.motorcycleInterest || null,
         args.company || null,
         args.source || "otro",
-        args.temperature || "cold",
         args.notes || null,
         now,
         now
@@ -251,7 +261,7 @@ function handleTool(name: string, args: Record<string, unknown>): unknown {
 
     case "crm_list_deals": {
       let sql = `
-        SELECT d.*, c.name as contact_name, c.temperature as contact_temperature,
+        SELECT d.*, c.name as contact_name,
                ps.name as stage_name, ps.color as stage_color, ps."order" as stage_order
         FROM deals d
         LEFT JOIN contacts c ON d.contact_id = c.id
@@ -331,7 +341,7 @@ function handleTool(name: string, args: Record<string, unknown>): unknown {
 
       const deals = db
         .prepare(
-          `SELECT d.*, c.name as contact_name, c.temperature as contact_temperature
+          `SELECT d.*, c.name as contact_name
            FROM deals d LEFT JOIN contacts c ON d.contact_id = c.id`
         )
         .all() as Array<Record<string, unknown>>;
@@ -383,12 +393,6 @@ function handleTool(name: string, args: Record<string, unknown>): unknown {
       const activeDeals = allDeals.filter((d) => !closedIds.includes(d.stage_id as string));
       const wonDeals = allDeals.filter((d) => wonStageIds.includes(d.stage_id as string));
 
-      const hotLeads = (
-        db
-          .prepare("SELECT COUNT(*) as count FROM contacts WHERE temperature = 'hot'")
-          .get() as { count: number }
-      ).count;
-
       return {
         totalContacts,
         activeDeals: activeDeals.length,
@@ -397,7 +401,6 @@ function handleTool(name: string, args: Record<string, unknown>): unknown {
         wonDealsCount: wonDeals.length,
         totalDeals: allDeals.length,
         conversionRate: allDeals.length > 0 ? Math.round((wonDeals.length / allDeals.length) * 100) : 0,
-        hotLeads,
       };
     }
 

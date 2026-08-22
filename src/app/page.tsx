@@ -5,6 +5,7 @@ import { KPICards } from "@/components/dashboard/KPICards";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
+import { LeadSourceBreakdown } from "@/components/dashboard/LeadSourceBreakdown";
 import type { DashboardStats } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +38,6 @@ export default function DashboardPage() {
       allDeals.length > 0
         ? Math.round((wonDeals.length / allDeals.length) * 100)
         : 0,
-    hotLeads: allContacts.filter((c) => c.temperature === "hot").length,
   };
 
   const pipelineData = stages
@@ -50,6 +50,13 @@ export default function DashboardPage() {
         .reduce((sum, d) => sum + d.value, 0),
       color: stage.color,
     }));
+
+  const sourceBreakdown = Object.entries(
+    allContacts.reduce<Record<string, number>>((acc, c) => {
+      acc[c.source] = (acc[c.source] || 0) + 1;
+      return acc;
+    }, {})
+  ).map(([source, count]) => ({ source, count }));
 
   const recentActivities = db
     .select({
@@ -115,7 +122,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-2">
           <PipelineChart data={pipelineData} />
         </div>
-        <div>
+        <div className="space-y-6">
           <RecentActivity
             activities={
               recentActivities as Array<{
@@ -127,6 +134,7 @@ export default function DashboardPage() {
               }>
             }
           />
+          <LeadSourceBreakdown data={sourceBreakdown} />
         </div>
       </div>
     </div>

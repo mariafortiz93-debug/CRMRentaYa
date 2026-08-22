@@ -26,7 +26,6 @@ export default function PipelinePage() {
       createdAt: deals.createdAt,
       updatedAt: deals.updatedAt,
       contactName: contacts.name,
-      contactTemperature: contacts.temperature,
     })
     .from(deals)
     .leftJoin(contacts, eq(deals.contactId, contacts.id))
@@ -48,7 +47,6 @@ export default function PipelinePage() {
         createdAt: d.createdAt,
         updatedAt: d.updatedAt,
         contactName: d.contactName,
-        contactTemperature: d.contactTemperature,
       })) as PipelineColumn["deals"],
   }));
 
