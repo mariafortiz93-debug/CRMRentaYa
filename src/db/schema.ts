@@ -32,6 +32,8 @@ export const contacts = sqliteTable("contacts", {
   score: integer("score").notNull().default(0),
   notes: text("notes"),
   visitResult: text("visit_result"), // aprobado | negado | sin_proceso
+  visitResultDate: integer("visit_result_date", { mode: "timestamp" }),
+  visitResultNote: text("visit_result_note"),
   procedureStartDate: integer("procedure_start_date", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()

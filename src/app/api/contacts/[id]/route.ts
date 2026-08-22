@@ -86,7 +86,13 @@ export async function PUT(
   if (body.source !== undefined) updateData.source = body.source;
   if (body.score !== undefined) updateData.score = Math.max(0, Math.min(100, body.score));
   if (body.notes !== undefined) updateData.notes = body.notes;
-  if (body.visitResult !== undefined) updateData.visitResult = body.visitResult;
+  if (body.visitResult !== undefined) {
+    updateData.visitResult = body.visitResult;
+    // Registrar la fecha del resultado para el contador de dias.
+    updateData.visitResultDate = body.visitResult ? new Date() : null;
+  }
+  if (body.visitResultNote !== undefined)
+    updateData.visitResultNote = body.visitResultNote;
   if (body.procedureStartDate !== undefined)
     updateData.procedureStartDate = body.procedureStartDate
       ? new Date(body.procedureStartDate)

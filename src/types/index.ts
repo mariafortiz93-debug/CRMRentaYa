@@ -33,6 +33,8 @@ export interface Contact {
   score: number;
   notes: string | null;
   visitResult: VisitResult | null;
+  visitResultDate: Date | null;
+  visitResultNote: string | null;
   procedureStartDate: Date | null;
   createdAt: Date;
   updatedAt: Date;

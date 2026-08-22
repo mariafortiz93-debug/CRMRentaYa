@@ -1,11 +1,23 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VISIT_RESULT_CONFIG, cleanPhoneForWhatsApp } from "@/lib/constants";
-import { Phone, MessageCircle } from "lucide-react";
+import { Phone, MessageCircle, AlertTriangle } from "lucide-react";
 
 interface VisitResultsCardProps {
   counts: { aprobado: number; sin_proceso: number; negado: number };
-  aprobados: Array<{ id: string; name: string; phone: string | null }>;
+  aprobados: Array<{
+    id: string;
+    name: string;
+    phone: string | null;
+    approvedAt: number | null;
+  }>;
+}
+
+const MAX_DAYS_TO_CONTACT = 3;
+
+function daysSince(ms: number | null): number | null {
+  if (!ms) return null;
+  return Math.floor((Date.now() - ms) / 86400000);
 }
 
 export function VisitResultsCard({ counts, aprobados }: VisitResultsCardProps) {
@@ -51,17 +63,37 @@ export function VisitResultsCard({ counts, aprobados }: VisitResultsCardProps) {
             </p>
           ) : (
             <div className="space-y-2">
-              {aprobados.map((c) => (
+              {aprobados.map((c) => {
+                const days = daysSince(c.approvedAt);
+                const overdue = days !== null && days >= MAX_DAYS_TO_CONTACT;
+                return (
                 <div
                   key={c.id}
-                  className="flex items-center justify-between gap-2 rounded-lg border p-2"
+                  className={`flex items-center justify-between gap-2 rounded-lg border p-2 ${
+                    overdue ? "border-red-300 bg-red-50" : ""
+                  }`}
                 >
-                  <Link
-                    href={`/contacts/${c.id}`}
-                    className="text-sm font-medium hover:underline truncate"
-                  >
-                    {c.name}
-                  </Link>
+                  <div className="min-w-0">
+                    <Link
+                      href={`/contacts/${c.id}`}
+                      className="text-sm font-medium hover:underline truncate block"
+                    >
+                      {c.name}
+                    </Link>
+                    {days !== null && (
+                      <span
+                        className={`text-xs flex items-center gap-1 ${
+                          overdue ? "text-red-600 font-medium" : "text-muted-foreground"
+                        }`}
+                      >
+                        {overdue && <AlertTriangle className="h-3 w-3" />}
+                        {days === 0
+                          ? "Aprobado hoy"
+                          : `Aprobado hace ${days} dia${days === 1 ? "" : "s"}`}
+                        {overdue ? " · contactar ya" : ""}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground">{c.phone || "-"}</span>
                     {c.phone && (
@@ -86,7 +118,8 @@ export function VisitResultsCard({ counts, aprobados }: VisitResultsCardProps) {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { ContactForm } from "./ContactForm";
 import { ActivityForm } from "@/components/activities/ActivityForm";
 import { ContactMethodDialog } from "@/components/pipeline/ContactMethodDialog";
@@ -35,11 +37,12 @@ import {
   IdCard,
   UserPlus,
   Bike,
+  ClipboardCheck,
 } from "lucide-react";
 import { formatCurrency, formatDate, formatRelativeDate, cleanPhoneForWhatsApp } from "@/lib/constants";
 import { ACTIVITY_TYPE_CONFIG, SOURCE_LABELS, MOTORCYCLE_LABELS, NEXT_ACTION_CONFIG, VISIT_RESULT_CONFIG } from "@/lib/constants";
 import { toast } from "sonner";
-import type { ActivityType, LeadSource, MotorcycleInterest, NextAction } from "@/types";
+import type { ActivityType, LeadSource, MotorcycleInterest, NextAction, VisitResult } from "@/types";
 
 const activityIcons: Record<string, typeof Phone> = {
   call: Phone,
@@ -68,6 +71,8 @@ interface ContactDetailClientProps {
     score: number;
     notes: string | null;
     visitResult: string | null;
+    visitResultDate: number | Date | null;
+    visitResultNote: string | null;
     procedureStartDate: number | Date | null;
     createdAt: number | Date;
   };
@@ -111,27 +116,37 @@ export function ContactDetailClient({
   const [stageId, setStageId] = useState(contact.stageId);
   const [pendingStageId, setPendingStageId] = useState<string | null>(null);
   const [visitResult, setVisitResult] = useState<string | null>(contact.visitResult);
+  const [visitNote, setVisitNote] = useState<string>(contact.visitResultNote || "");
 
   const currentStage = stages.find((s) => s.id === stageId);
   const nextAction = currentStage?.nextAction as NextAction | null | undefined;
   const agendarStageId =
     stages.find((s) => s.name.toLowerCase() === "agendar visita")?.id ?? null;
 
-  const setVisitResultValue = async (result: string) => {
-    const previous = visitResult;
-    setVisitResult(result);
+  const saveVisitResult = async (result: string, note: string) => {
     try {
       const res = await fetch(`/api/contacts/${contact.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitResult: result }),
+        body: JSON.stringify({
+          visitResult: result,
+          visitResultNote: result === "aprobado" ? null : note || null,
+        }),
       });
       if (!res.ok) throw new Error("Error");
       toast.success("Resultado guardado");
       router.refresh();
     } catch {
-      setVisitResult(previous);
       toast.error("Error al guardar el resultado");
+    }
+  };
+
+  const setVisitResultValue = (result: string) => {
+    setVisitResult(result);
+    // Si es aprobado no requiere motivo; guardamos de una.
+    if (result === "aprobado") {
+      setVisitNote("");
+      saveVisitResult(result, "");
     }
   };
 
@@ -367,18 +382,19 @@ export function ContactDetailClient({
       )}
 
       {(currentStage?.name.toLowerCase() === "agendar visita" ||
-        currentStage?.name.toLowerCase() === "visitas reagendadas") && (
+        currentStage?.name.toLowerCase() === "visitas reagendadas" ||
+        currentStage?.name.toLowerCase() === "visita") && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6">
             <div>
               <p className="font-medium">
-                {currentStage?.name.toLowerCase() === "visitas reagendadas"
-                  ? "Reagendar visita"
-                  : "Agendar visita"}
+                {currentStage?.name.toLowerCase() === "agendar visita"
+                  ? "Agendar visita"
+                  : "Reprogramar visita"}
               </p>
               <p className="text-sm text-muted-foreground">
-                Asigna visitador, fecha, hora y barrio. Al agendar, el cliente pasa a
-                la etapa Visita.
+                Asigna visitador, fecha, hora y barrio. Puedes ver la agenda del dia
+                y las horas ocupadas de cada visitador.
               </p>
             </div>
             <Button
@@ -386,7 +402,9 @@ export function ContactDetailClient({
               className="cursor-pointer shrink-0"
             >
               <Calendar className="h-4 w-4 mr-2" />
-              Agendar visita
+              {currentStage?.name.toLowerCase() === "agendar visita"
+                ? "Agendar visita"
+                : "Reprogramar visita"}
             </Button>
           </CardContent>
         </Card>
@@ -421,6 +439,27 @@ export function ContactDetailClient({
                 );
               })}
             </div>
+            {(visitResult === "negado" || visitResult === "sin_proceso") && (
+              <div className="pt-2 border-t space-y-2">
+                <Label htmlFor="visit-note-detail">
+                  Motivo ({visitResult === "negado" ? "por qué fue negado" : "por qué quedó sin proceso"})
+                </Label>
+                <Textarea
+                  id="visit-note-detail"
+                  value={visitNote}
+                  onChange={(e) => setVisitNote(e.target.value)}
+                  placeholder="Escribe el motivo..."
+                  rows={3}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => saveVisitResult(visitResult, visitNote)}
+                  className="cursor-pointer"
+                >
+                  Guardar motivo
+                </Button>
+              </div>
+            )}
             {visitResult === "aprobado" && (
               <div className="pt-2 border-t">
                 <Button onClick={startProcedure} className="cursor-pointer">
@@ -533,6 +572,26 @@ export function ContactDetailClient({
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span>Creado {formatDate(contact.createdAt)}</span>
             </div>
+            {visitResult && (
+              <div className="flex items-center gap-2 text-sm">
+                <ClipboardCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>
+                  Visita: {VISIT_RESULT_CONFIG[visitResult as VisitResult]?.label || visitResult}
+                </span>
+              </div>
+            )}
+            {contact.visitResultNote && (
+              <div className="pt-2 border-t">
+                <p className="text-xs font-medium text-muted-foreground">Motivo:</p>
+                <p className="text-sm text-muted-foreground">{contact.visitResultNote}</p>
+              </div>
+            )}
+            {contact.procedureStartDate && (
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span>Inicio tramite: {formatDate(contact.procedureStartDate)}</span>
+              </div>
+            )}
             {contact.notes && (
               <div className="pt-2 border-t">
                 <p className="text-sm text-muted-foreground">{contact.notes}</p>

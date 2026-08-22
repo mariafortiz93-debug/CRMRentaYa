@@ -65,7 +65,12 @@ export default function DashboardPage() {
   // Aprobados que aun no han iniciado tramite (pendientes de contactar)
   const aprobadosPorContactar = allContacts
     .filter((c) => c.visitResult === "aprobado" && !c.procedureStartDate)
-    .map((c) => ({ id: c.id, name: c.name, phone: c.phone }));
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      approvedAt: c.visitResultDate ? c.visitResultDate.getTime() : null,
+    }));
 
   const recentActivities = db
     .select({

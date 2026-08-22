@@ -61,6 +61,8 @@ sqlite.exec(`
     score INTEGER NOT NULL DEFAULT 0,
     notes TEXT,
     visit_result TEXT,
+    visit_result_date INTEGER,
+    visit_result_note TEXT,
     procedure_start_date INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL

@@ -20,7 +20,7 @@ interface KanbanColumnProps {
   name: string;
   color: string;
   nextAction: NextAction | null;
-  primaryAction?: "diligenciar" | "agendar" | null;
+  primaryAction?: "diligenciar" | "agendar" | "reprogramar" | "resultado" | null;
   onCardAction?: (contactId: string) => void;
   contacts: ContactCardData[];
 }

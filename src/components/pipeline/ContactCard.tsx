@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { SOURCE_LABELS, cleanPhoneForWhatsApp } from "@/lib/constants";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone, MessageCircle, FileText, Calendar } from "lucide-react";
+import { Phone, MessageCircle, FileText, Calendar, ClipboardCheck } from "lucide-react";
 import type { LeadSource, NextAction } from "@/types";
 
 interface ContactCardProps {
@@ -13,8 +13,8 @@ interface ContactCardProps {
   phone: string | null;
   source: string;
   nextAction: NextAction | null;
-  /** Primary action for this stage, e.g. "diligenciar" or "agendar". */
-  primaryAction?: "diligenciar" | "agendar" | null;
+  /** Primary action for this stage. */
+  primaryAction?: "diligenciar" | "agendar" | "reprogramar" | "resultado" | null;
   onPrimaryAction?: () => void;
 }
 
@@ -93,6 +93,16 @@ export function ContactCard({
               <>
                 <FileText className="h-3.5 w-3.5" />
                 Diligenciar formulario
+              </>
+            ) : primaryAction === "reprogramar" ? (
+              <>
+                <Calendar className="h-3.5 w-3.5" />
+                Reprogramar visita
+              </>
+            ) : primaryAction === "resultado" ? (
+              <>
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                Marcar resultado
               </>
             ) : (
               <>

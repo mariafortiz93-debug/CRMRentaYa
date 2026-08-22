@@ -17,6 +17,7 @@ import { KanbanColumn } from "./KanbanColumn";
 import { ContactCard } from "./ContactCard";
 import { ContactMethodDialog } from "./ContactMethodDialog";
 import { ScheduleVisitDialog } from "./ScheduleVisitDialog";
+import { VisitResultDialog } from "./VisitResultDialog";
 import { ContactForm } from "@/components/contacts/ContactForm";
 import { toast } from "sonner";
 import type { PipelineColumn, Contact } from "@/types";
@@ -25,10 +26,14 @@ interface KanbanBoardProps {
   initialColumns: PipelineColumn[];
 }
 
-function stagePrimaryAction(name: string): "diligenciar" | "agendar" | null {
+type PrimaryAction = "diligenciar" | "agendar" | "reprogramar" | "resultado" | null;
+
+function stagePrimaryAction(name: string): PrimaryAction {
   const n = name.toLowerCase();
   if (n === "registro online") return "diligenciar";
   if (n === "agendar visita" || n === "visitas reagendadas") return "agendar";
+  if (n === "visita") return "reprogramar";
+  if (n === "estado de la visita") return "resultado";
   return null;
 }
 
@@ -41,6 +46,7 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
   );
   const [diligenciarContact, setDiligenciarContact] = useState<Contact | null>(null);
   const [agendarContact, setAgendarContact] = useState<Contact | null>(null);
+  const [resultContact, setResultContact] = useState<Contact | null>(null);
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
 
   const agendarStageId =
@@ -70,7 +76,8 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     const column = columns.find((c) => c.contacts.some((x) => x.id === contactId));
     const action = column ? stagePrimaryAction(column.name) : null;
     if (action === "diligenciar") setDiligenciarContact(contact);
-    else if (action === "agendar") setAgendarContact(contact);
+    else if (action === "agendar" || action === "reprogramar") setAgendarContact(contact);
+    else if (action === "resultado") setResultContact(contact);
   };
 
   const sensors = useSensors(
@@ -278,6 +285,19 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
           onScheduled={() => moveContactLocal(agendarContact.id, "Visita")}
           onClose={() => {
             setAgendarContact(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {resultContact && (
+        <VisitResultDialog
+          open={!!resultContact}
+          contactId={resultContact.id}
+          currentResult={resultContact.visitResult}
+          currentNote={resultContact.visitResultNote}
+          onClose={() => {
+            setResultContact(null);
             router.refresh();
           }}
         />
