@@ -289,6 +289,27 @@ export function ContactDetailClient({
         </CardContent>
       </Card>
 
+      {currentStage?.name.toLowerCase() === "registro online" && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6">
+            <div>
+              <p className="font-medium">Registro Online</p>
+              <p className="text-sm text-muted-foreground">
+                Completa todos los datos del cliente: documento, direccion, moto de
+                interes y demas.
+              </p>
+            </div>
+            <Button
+              onClick={() => setShowEditForm(true)}
+              className="cursor-pointer shrink-0"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Diligenciar formulario
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Contact info */}
         <Card>
