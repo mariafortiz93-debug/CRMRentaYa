@@ -45,9 +45,11 @@ interface ContactFormProps {
   open: boolean;
   onClose: () => void;
   initialData?: Partial<ContactFormData> & { id?: string };
+  /** If set, after a successful edit the contact is moved to this stage. */
+  advanceToStageId?: string | null;
 }
 
-export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
+export function ContactForm({ open, onClose, initialData, advanceToStageId }: ContactFormProps) {
   const router = useRouter();
   const isEditing = !!initialData?.id;
 
@@ -92,9 +94,16 @@ export function ContactForm({ open, onClose, initialData }: ContactFormProps) {
 
       if (!res.ok) throw new Error("Error al guardar");
 
-      toast.success(
-        isEditing ? "Contacto actualizado" : "Contacto creado"
-      );
+      if (isEditing && advanceToStageId) {
+        await fetch(`/api/contacts/${initialData!.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stageId: advanceToStageId }),
+        });
+        toast.success("Registro completado. Pasa a Agendar Visita.");
+      } else {
+        toast.success(isEditing ? "Contacto actualizado" : "Contacto creado");
+      }
       reset();
       onClose();
       router.refresh();

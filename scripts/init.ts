@@ -60,8 +60,19 @@ sqlite.exec(`
     source TEXT NOT NULL DEFAULT 'otro',
     score INTEGER NOT NULL DEFAULT 0,
     notes TEXT,
+    visit_result TEXT,
+    procedure_start_date INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS visits (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL REFERENCES contacts(id),
+    visitador TEXT NOT NULL,
+    neighborhood TEXT,
+    scheduled_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS deals (

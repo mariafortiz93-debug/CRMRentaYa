@@ -6,6 +6,7 @@ import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
 import { LeadSourceBreakdown } from "@/components/dashboard/LeadSourceBreakdown";
+import { VisitResultsCard } from "@/components/dashboard/VisitResultsCard";
 import type { DashboardStats } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +55,17 @@ export default function DashboardPage() {
       return acc;
     }, {})
   ).map(([source, count]) => ({ source, count }));
+
+  const visitResultCounts = {
+    aprobado: allContacts.filter((c) => c.visitResult === "aprobado").length,
+    sin_proceso: allContacts.filter((c) => c.visitResult === "sin_proceso").length,
+    negado: allContacts.filter((c) => c.visitResult === "negado").length,
+  };
+
+  // Aprobados que aun no han iniciado tramite (pendientes de contactar)
+  const aprobadosPorContactar = allContacts
+    .filter((c) => c.visitResult === "aprobado" && !c.procedureStartDate)
+    .map((c) => ({ id: c.id, name: c.name, phone: c.phone }));
 
   const recentActivities = db
     .select({
@@ -134,6 +146,8 @@ export default function DashboardPage() {
           <LeadSourceBreakdown data={sourceBreakdown} />
         </div>
       </div>
+
+      <VisitResultsCard counts={visitResultCounts} aprobados={aprobadosPorContactar} />
     </div>
   );
 }

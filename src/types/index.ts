@@ -13,6 +13,8 @@ export type MotorcycleInterest = "boxer_ct100_ks" | "boxer_ct100_es";
 
 export type NextAction = "call" | "whatsapp";
 
+export type VisitResult = "aprobado" | "negado" | "sin_proceso";
+
 export interface Contact {
   id: string;
   name: string;
@@ -30,8 +32,19 @@ export interface Contact {
   source: LeadSource;
   score: number;
   notes: string | null;
+  visitResult: VisitResult | null;
+  procedureStartDate: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Visit {
+  id: string;
+  contactId: string;
+  visitador: string;
+  neighborhood: string | null;
+  scheduledAt: Date;
+  createdAt: Date;
 }
 
 export interface Deal {
@@ -85,6 +98,7 @@ export interface CrmConfig {
     }>;
   };
   leadSources: string[];
+  visitadores?: string[];
   preferences: {
     language: "es" | "en";
     theme: "light" | "dark" | "auto";

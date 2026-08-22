@@ -15,6 +15,7 @@ import {
 import { ContactForm } from "./ContactForm";
 import { ActivityForm } from "@/components/activities/ActivityForm";
 import { ContactMethodDialog } from "@/components/pipeline/ContactMethodDialog";
+import { ScheduleVisitDialog } from "@/components/pipeline/ScheduleVisitDialog";
 import {
   ArrowLeft,
   Mail,
@@ -36,7 +37,7 @@ import {
   Bike,
 } from "lucide-react";
 import { formatCurrency, formatDate, formatRelativeDate, cleanPhoneForWhatsApp } from "@/lib/constants";
-import { ACTIVITY_TYPE_CONFIG, SOURCE_LABELS, MOTORCYCLE_LABELS, NEXT_ACTION_CONFIG } from "@/lib/constants";
+import { ACTIVITY_TYPE_CONFIG, SOURCE_LABELS, MOTORCYCLE_LABELS, NEXT_ACTION_CONFIG, VISIT_RESULT_CONFIG } from "@/lib/constants";
 import { toast } from "sonner";
 import type { ActivityType, LeadSource, MotorcycleInterest, NextAction } from "@/types";
 
@@ -66,6 +67,8 @@ interface ContactDetailClientProps {
     source: string;
     score: number;
     notes: string | null;
+    visitResult: string | null;
+    procedureStartDate: number | Date | null;
     createdAt: number | Date;
   };
   stages: Array<{
@@ -101,13 +104,66 @@ export function ContactDetailClient({
 }: ContactDetailClientProps) {
   const router = useRouter();
   const [showEditForm, setShowEditForm] = useState(false);
+  const [advanceStageId, setAdvanceStageId] = useState<string | null>(null);
   const [showActivityForm, setShowActivityForm] = useState(false);
+  const [showScheduleVisit, setShowScheduleVisit] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [stageId, setStageId] = useState(contact.stageId);
   const [pendingStageId, setPendingStageId] = useState<string | null>(null);
+  const [visitResult, setVisitResult] = useState<string | null>(contact.visitResult);
 
   const currentStage = stages.find((s) => s.id === stageId);
   const nextAction = currentStage?.nextAction as NextAction | null | undefined;
+  const agendarStageId =
+    stages.find((s) => s.name.toLowerCase() === "agendar visita")?.id ?? null;
+
+  const setVisitResultValue = async (result: string) => {
+    const previous = visitResult;
+    setVisitResult(result);
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitResult: result }),
+      });
+      if (!res.ok) throw new Error("Error");
+      toast.success("Resultado guardado");
+      router.refresh();
+    } catch {
+      setVisitResult(previous);
+      toast.error("Error al guardar el resultado");
+    }
+  };
+
+  const startProcedure = async () => {
+    const tramiteStage = stages.find((s) => s.name.toLowerCase() === "inicio de tramite");
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          procedureStartDate: new Date().toISOString(),
+          stageId: tramiteStage?.id,
+        }),
+      });
+      if (!res.ok) throw new Error("Error");
+      if (tramiteStage) setStageId(tramiteStage.id);
+      toast.success("Tramite iniciado. Fecha de inicio registrada.");
+      router.refresh();
+    } catch {
+      toast.error("Error al iniciar el tramite");
+    }
+  };
+
+  const openEditForm = () => {
+    setAdvanceStageId(null);
+    setShowEditForm(true);
+  };
+
+  const openRegistroForm = () => {
+    setAdvanceStageId(agendarStageId);
+    setShowEditForm(true);
+  };
 
   const applyStageChange = async (newStageId: string, contactMethod?: "whatsapp" | "call") => {
     const previous = stageId;
@@ -218,7 +274,7 @@ export function ContactDetailClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowEditForm(true)}
+            onClick={openEditForm}
             className="cursor-pointer"
           >
             <Pencil className="h-4 w-4 mr-1" />
@@ -300,12 +356,78 @@ export function ContactDetailClient({
               </p>
             </div>
             <Button
-              onClick={() => setShowEditForm(true)}
+              onClick={openRegistroForm}
               className="cursor-pointer shrink-0"
             >
               <FileText className="h-4 w-4 mr-2" />
               Diligenciar formulario
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {(currentStage?.name.toLowerCase() === "agendar visita" ||
+        currentStage?.name.toLowerCase() === "visitas reagendadas") && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6">
+            <div>
+              <p className="font-medium">
+                {currentStage?.name.toLowerCase() === "visitas reagendadas"
+                  ? "Reagendar visita"
+                  : "Agendar visita"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Asigna visitador, fecha, hora y barrio. Al agendar, el cliente pasa a
+                la etapa Visita.
+              </p>
+            </div>
+            <Button
+              onClick={() => setShowScheduleVisit(true)}
+              className="cursor-pointer shrink-0"
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              Agendar visita
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStage?.name.toLowerCase() === "estado de la visita" && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="space-y-3 pt-6">
+            <div>
+              <p className="font-medium">Resultado de la visita</p>
+              <p className="text-sm text-muted-foreground">
+                Marca el resultado. Si es Aprobado, podras iniciar el tramite.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(["aprobado", "sin_proceso", "negado"] as const).map((r) => {
+                const cfg = VISIT_RESULT_CONFIG[r];
+                const active = visitResult === r;
+                return (
+                  <button
+                    key={r}
+                    onClick={() => setVisitResultValue(r)}
+                    className="rounded-lg px-3 py-2 text-sm font-medium border cursor-pointer transition-all"
+                    style={{
+                      backgroundColor: active ? cfg.bgColor : "transparent",
+                      color: active ? cfg.color : undefined,
+                      borderColor: active ? cfg.color : "var(--border)",
+                    }}
+                  >
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+            {visitResult === "aprobado" && (
+              <div className="pt-2 border-t">
+                <Button onClick={startProcedure} className="cursor-pointer">
+                  Contactar cliente e iniciar tramite
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -522,8 +644,10 @@ export function ContactDetailClient({
 
       <ContactForm
         open={showEditForm}
+        advanceToStageId={advanceStageId}
         onClose={() => {
           setShowEditForm(false);
+          setAdvanceStageId(null);
           router.refresh();
         }}
         initialData={{
@@ -560,6 +684,18 @@ export function ContactDetailClient({
           const target = pendingStageId;
           setPendingStageId(null);
           if (target) applyStageChange(target, method);
+        }}
+      />
+
+      <ScheduleVisitDialog
+        open={showScheduleVisit}
+        onClose={() => setShowScheduleVisit(false)}
+        contactId={contact.id}
+        contactNeighborhood={contact.neighborhood}
+        onScheduled={() => {
+          const visitaStage = stages.find((s) => s.name.toLowerCase() === "visita");
+          if (visitaStage) setStageId(visitaStage.id);
+          router.refresh();
         }}
       />
     </div>

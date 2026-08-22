@@ -31,10 +31,27 @@ export const contacts = sqliteTable("contacts", {
   source: text("source").notNull().default("otro"),
   score: integer("score").notNull().default(0),
   notes: text("notes"),
+  visitResult: text("visit_result"), // aprobado | negado | sin_proceso
+  procedureStartDate: integer("procedure_start_date", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const visits = sqliteTable("visits", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  contactId: text("contact_id")
+    .notNull()
+    .references(() => contacts.id),
+  visitador: text("visitador").notNull(),
+  neighborhood: text("neighborhood"),
+  scheduledAt: integer("scheduled_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
 });

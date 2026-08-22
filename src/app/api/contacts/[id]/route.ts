@@ -86,6 +86,11 @@ export async function PUT(
   if (body.source !== undefined) updateData.source = body.source;
   if (body.score !== undefined) updateData.score = Math.max(0, Math.min(100, body.score));
   if (body.notes !== undefined) updateData.notes = body.notes;
+  if (body.visitResult !== undefined) updateData.visitResult = body.visitResult;
+  if (body.procedureStartDate !== undefined)
+    updateData.procedureStartDate = body.procedureStartDate
+      ? new Date(body.procedureStartDate)
+      : null;
 
   const result = db
     .update(contacts)

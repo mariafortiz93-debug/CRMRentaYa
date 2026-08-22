@@ -40,9 +40,19 @@ function createDatabase(): Database.Database {
 function initTables(db: Database.Database): void {
   // Each CREATE TABLE is its own statement to minimize lock time
   const tables = [
+    `CREATE TABLE IF NOT EXISTS pipeline_stages (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      "order" INTEGER NOT NULL,
+      color TEXT NOT NULL DEFAULT '#64748b',
+      is_won INTEGER NOT NULL DEFAULT 0,
+      is_lost INTEGER NOT NULL DEFAULT 0,
+      next_action TEXT
+    )`,
     `CREATE TABLE IF NOT EXISTS contacts (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      stage_id TEXT REFERENCES pipeline_stages(id),
       phone TEXT,
       phone2 TEXT,
       address TEXT,
@@ -56,16 +66,18 @@ function initTables(db: Database.Database): void {
       source TEXT NOT NULL DEFAULT 'otro',
       score INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
+      visit_result TEXT,
+      procedure_start_date INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`,
-    `CREATE TABLE IF NOT EXISTS pipeline_stages (
+    `CREATE TABLE IF NOT EXISTS visits (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      "order" INTEGER NOT NULL,
-      color TEXT NOT NULL DEFAULT '#64748b',
-      is_won INTEGER NOT NULL DEFAULT 0,
-      is_lost INTEGER NOT NULL DEFAULT 0
+      contact_id TEXT NOT NULL REFERENCES contacts(id),
+      visitador TEXT NOT NULL,
+      neighborhood TEXT,
+      scheduled_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
     )`,
     `CREATE TABLE IF NOT EXISTS deals (
       id TEXT PRIMARY KEY,

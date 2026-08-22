@@ -1,4 +1,4 @@
-import type { LeadSource, ActivityType, MotorcycleInterest, NextAction } from "@/types";
+import type { LeadSource, ActivityType, MotorcycleInterest, NextAction, VisitResult } from "@/types";
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
   redes: "Redes sociales",
@@ -18,6 +18,15 @@ export const MOTORCYCLE_LABELS: Record<MotorcycleInterest, string> = {
 export const NEXT_ACTION_CONFIG: Record<NextAction, { label: string; icon: string }> = {
   call: { label: "Llamar", icon: "Phone" },
   whatsapp: { label: "Enviar WhatsApp", icon: "MessageCircle" },
+};
+
+export const VISIT_RESULT_CONFIG: Record<
+  VisitResult,
+  { label: string; color: string; bgColor: string }
+> = {
+  aprobado: { label: "Aprobado", color: "#15803d", bgColor: "#dcfce7" },
+  sin_proceso: { label: "Sin proceso", color: "#a16207", bgColor: "#fef9c3" },
+  negado: { label: "Negado", color: "#b91c1c", bgColor: "#fee2e2" },
 };
 
 export const ACTIVITY_TYPE_CONFIG: Record<

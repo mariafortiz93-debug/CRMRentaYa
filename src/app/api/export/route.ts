@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { contacts, deals, pipelineStages } from "@/db/schema";
 import { eq, desc, asc } from "drizzle-orm";
-import { formatDate, formatCurrency, SOURCE_LABELS, MOTORCYCLE_LABELS } from "@/lib/constants";
-import type { LeadSource, MotorcycleInterest } from "@/types";
+import { formatDate, formatCurrency, SOURCE_LABELS, MOTORCYCLE_LABELS, VISIT_RESULT_CONFIG } from "@/lib/constants";
+import type { LeadSource, MotorcycleInterest, VisitResult } from "@/types";
 
 function escapeCSV(value: string | null | undefined): string {
   if (value === null || value === undefined) return "";
@@ -42,6 +42,8 @@ export async function GET(request: NextRequest) {
         source: contacts.source,
         score: contacts.score,
         notes: contacts.notes,
+        visitResult: contacts.visitResult,
+        procedureStartDate: contacts.procedureStartDate,
         createdAt: contacts.createdAt,
         stageName: pipelineStages.name,
       })
@@ -64,6 +66,8 @@ export async function GET(request: NextRequest) {
       "Moto de Interes",
       "Empresa",
       "Fuente",
+      "Resultado Visita",
+      "Inicio Tramite",
       "Score",
       "Notas",
       "Fecha de creacion",
@@ -83,6 +87,8 @@ export async function GET(request: NextRequest) {
       MOTORCYCLE_LABELS[c.motorcycleInterest as MotorcycleInterest] || c.motorcycleInterest || "",
       c.company || "",
       SOURCE_LABELS[c.source as LeadSource] || c.source,
+      c.visitResult ? VISIT_RESULT_CONFIG[c.visitResult as VisitResult]?.label || c.visitResult : "",
+      c.procedureStartDate ? formatDate(c.procedureStartDate) : "",
       String(c.score),
       c.notes || "",
       formatDate(c.createdAt),
