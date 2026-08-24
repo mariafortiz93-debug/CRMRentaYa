@@ -2,31 +2,23 @@ FROM node:22-slim
 
 WORKDIR /app
 
-# Install build dependencies for better-sqlite3
+# Dependencias de compilacion para better-sqlite3
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
 COPY package.json package-lock.json* ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy source code
 COPY . .
-
-# Build the application
 RUN npm run build
 
-# Create data directory
+# La base de datos vive en /app/data, que en produccion es un disco
+# persistente montado por el hosting. Por eso la inicializacion NO se hace
+# aqui (se perderia al montar el volumen) sino al arrancar el contenedor.
 RUN mkdir -p data
 
-# Initialize database
-RUN npx tsx scripts/init.ts
-
-# Expose port
 EXPOSE 3000
-
 ENV NODE_ENV=production
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["npm", "start"]
+# Crea las tablas si faltan y luego levanta el servidor.
+CMD ["sh", "-c", "npx tsx scripts/init.ts && npm start"]

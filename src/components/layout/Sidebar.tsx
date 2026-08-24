@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -11,6 +11,7 @@ import {
   Settings,
   Briefcase,
   CalendarDays,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col bg-[var(--sidebar)] text-[var(--sidebar-foreground)] min-h-screen">
@@ -63,11 +65,24 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-4 py-4 border-t border-[var(--sidebar-border)]">
-        <p className="text-xs text-[var(--sidebar-foreground)]/50">
-          Renta Ya Motocicletas
-        </p>
-        <p className="text-xs text-[var(--sidebar-foreground)]/50">CRM v1.0</p>
+      <div className="px-3 py-4 border-t border-[var(--sidebar-border)] space-y-3">
+        <button
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            router.replace("/login");
+            router.refresh();
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--sidebar-foreground)]/70 transition-colors cursor-pointer hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+        >
+          <LogOut className="h-5 w-5 shrink-0" />
+          Salir
+        </button>
+        <div className="px-3">
+          <p className="text-xs text-[var(--sidebar-foreground)]/50">
+            Renta Ya Motocicletas
+          </p>
+          <p className="text-xs text-[var(--sidebar-foreground)]/50">CRM v1.0</p>
+        </div>
       </div>
     </aside>
   );
