@@ -6,6 +6,7 @@ import type {
   VisitResult,
   ContactMethod,
   Classification,
+  ClassificationDestination,
 } from "@/types";
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
@@ -56,9 +57,15 @@ export const CLASSIFICATION_CONFIG: Record<
     color: string;
     bgColor: string;
     detailLabel?: string;
-    destination: "Prospecto" | "Perdido";
+    destination: ClassificationDestination;
   }
 > = {
+  interesado: {
+    label: "Interesado",
+    color: "#15803d",
+    bgColor: "#dcfce7",
+    destination: "Contactado",
+  },
   moto_nueva: {
     label: "Moto nueva",
     color: "#15803d",
@@ -113,6 +120,7 @@ export const CLASSIFICATION_CONFIG: Record<
 };
 
 export const CLASSIFICATION_ORDER: Classification[] = [
+  "interesado",
   "moto_nueva",
   "pago_mensual",
   "indeciso",

@@ -38,7 +38,16 @@ export const contacts = sqliteTable("contacts", {
   visitResult: text("visit_result"), // aprobado | negado | sin_proceso
   visitResultDate: integer("visit_result_date", { mode: "timestamp" }),
   visitResultNote: text("visit_result_note"),
+  /** Cuando entro a la etapa actual (para las alertas de dias sin gestion). */
+  stageChangedAt: integer("stage_changed_at", { mode: "timestamp" }),
+  /** Gestion de la llamada al cliente aprobado. */
+  approvedContactedAt: integer("approved_contacted_at", { mode: "timestamp" }),
+  approvedContactMethod: text("approved_contact_method"), // whatsapp | call
+  /** Fecha en que el cliente dijo que iniciara el tramite. */
   procedureStartDate: integer("procedure_start_date", { mode: "timestamp" }),
+  /** Concesionario: cuando anuncio que iria y cuando asistio. */
+  dealershipAnnouncedAt: integer("dealership_announced_at", { mode: "timestamp" }),
+  dealershipVisitedAt: integer("dealership_visited_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

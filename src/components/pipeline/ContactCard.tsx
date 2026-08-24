@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   UserRound,
   Tag,
+  CheckCircle2,
 } from "lucide-react";
 import type {
   LeadSource,
@@ -28,11 +29,20 @@ import type {
   Classification,
 } from "@/types";
 
+/** Dias sin llamar a un aprobado antes de marcarlo en rojo. */
 const MAX_DAYS_TO_CONTACT = 3;
+/** Dias en "Agendar Visita" sin agendar antes de marcarlo en rojo. */
+const MAX_DAYS_TO_SCHEDULE = 2;
 
-function daysSince(ms: number | null): number | null {
+function daysSince(ms: number | null | undefined): number | null {
   if (!ms) return null;
   return Math.floor((Date.now() - ms) / 86400000);
+}
+
+function formatShortDate(ms: number): string {
+  return new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short" }).format(
+    new Date(ms)
+  );
 }
 
 export type CardAction =
@@ -40,8 +50,9 @@ export type CardAction =
   | "agendar"
   | "reprogramar"
   | "resultado"
-  | "iniciar_tramite"
+  | "gestionar_llamada"
   | "clasificar"
+  | "asistio_concesionario"
   | null;
 
 interface ContactCardProps {
@@ -58,10 +69,20 @@ interface ContactCardProps {
   classification?: string | null;
   classificationDetail?: string | null;
   visitador?: string | null;
-  /** Muestra el metodo de contacto y la clasificacion (etapa Contactado). */
+  /** Gestion de la llamada al aprobado. */
+  approvedContactedAt?: number | null;
+  approvedContactMethod?: string | null;
+  procedureStartDate?: number | null;
+  /** Concesionario. */
+  dealershipVisitedAt?: number | null;
+  /** Cuando entro a la etapa actual (alerta de dias sin agendar). */
+  stageChangedAt?: number | null;
+  /** Muestra el metodo de contacto (etapa Contactado). */
   showContactInfo?: boolean;
   /** Muestra el visitador asignado (etapas Visita / Visitas Reagendadas). */
   showVisitador?: boolean;
+  /** Alerta si lleva demasiados dias sin agendar la visita. */
+  warnIfUnscheduled?: boolean;
   /** Las tarjetas de columnas calculadas no se arrastran. */
   draggable?: boolean;
 }
@@ -80,8 +101,14 @@ export function ContactCard({
   classification,
   classificationDetail,
   visitador,
+  approvedContactedAt,
+  approvedContactMethod,
+  procedureStartDate,
+  dealershipVisitedAt,
+  stageChangedAt,
   showContactInfo,
   showVisitador,
+  warnIfUnscheduled,
   draggable = true,
 }: ContactCardProps) {
   const {
@@ -107,10 +134,23 @@ export function ContactCard({
     ? CLASSIFICATION_CONFIG[classification as Classification]
     : null;
 
-  // El contador/alerta solo aplica a aprobados pendientes de llamar.
-  const pendingCall = primaryAction === "iniciar_tramite";
-  const days = pendingCall ? daysSince(visitResultDate ?? null) : null;
-  const overdue = days !== null && days >= MAX_DAYS_TO_CONTACT;
+  // Aprobado sin gestionar: contador de dias desde la aprobacion.
+  const isApprovedColumn = primaryAction === "gestionar_llamada";
+  const gestionado = !!approvedContactedAt;
+  const daysSinceApproval =
+    isApprovedColumn && !gestionado ? daysSince(visitResultDate) : null;
+  const callOverdue =
+    daysSinceApproval !== null && daysSinceApproval >= MAX_DAYS_TO_CONTACT;
+
+  // En "Agendar Visita" sin agendar: contador de dias en la etapa.
+  const daysWaiting = warnIfUnscheduled ? daysSince(stageChangedAt) : null;
+  const scheduleOverdue =
+    daysWaiting !== null && daysWaiting >= MAX_DAYS_TO_SCHEDULE;
+
+  const overdue = callOverdue || scheduleOverdue;
+  const methodUsedCfg = approvedContactMethod
+    ? CONTACT_METHOD_CONFIG[approvedContactMethod as ContactMethod]
+    : null;
 
   const dragProps = draggable ? { ...attributes, ...listeners } : {};
 
@@ -136,9 +176,9 @@ export function ContactCard({
           )}
         </div>
 
-        {showContactInfo && (methodCfg || classCfg) && (
+        {(classCfg || (showContactInfo && methodCfg)) && (
           <div className="flex flex-wrap gap-1">
-            {methodCfg && (
+            {showContactInfo && methodCfg && (
               <span
                 className="text-[10px] font-medium rounded px-1.5 py-0.5"
                 style={{ backgroundColor: methodCfg.bgColor, color: methodCfg.color }}
@@ -194,17 +234,53 @@ export function ContactCard({
           )}
         </div>
 
-        {days !== null && (
+        {daysSinceApproval !== null && (
           <div
             className={`flex items-center gap-1 text-[11px] ${
-              overdue ? "text-red-600 font-medium" : "text-muted-foreground"
+              callOverdue ? "text-red-600 font-medium" : "text-muted-foreground"
             }`}
           >
-            {overdue && <AlertTriangle className="h-3 w-3" />}
-            {days === 0
-              ? "Aprobado hoy"
-              : `Aprobado hace ${days} dia${days === 1 ? "" : "s"}`}
-            {overdue ? " · llamar ya" : ""}
+            {callOverdue && <AlertTriangle className="h-3 w-3" />}
+            {daysSinceApproval === 0
+              ? "Aprobado hoy · sin gestionar"
+              : `Sin gestionar hace ${daysSinceApproval} dia${daysSinceApproval === 1 ? "" : "s"}`}
+            {callOverdue ? " · llamar ya" : ""}
+          </div>
+        )}
+
+        {isApprovedColumn && gestionado && (
+          <div className="text-[11px] space-y-0.5">
+            <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium bg-green-100 text-green-700">
+              <CheckCircle2 className="h-3 w-3" />
+              Gestionado
+              {methodUsedCfg ? ` ${methodUsedCfg.label.toLowerCase()}` : ""}
+            </span>
+            {procedureStartDate && (
+              <div className="text-muted-foreground">
+                Inicia tramite: {formatShortDate(procedureStartDate)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {daysWaiting !== null && (
+          <div
+            className={`flex items-center gap-1 text-[11px] ${
+              scheduleOverdue ? "text-red-600 font-medium" : "text-muted-foreground"
+            }`}
+          >
+            {scheduleOverdue && <AlertTriangle className="h-3 w-3" />}
+            {daysWaiting === 0
+              ? "Ingreso hoy"
+              : `Esperando agenda hace ${daysWaiting} dia${daysWaiting === 1 ? "" : "s"}`}
+            {scheduleOverdue ? " · agendar ya" : ""}
+          </div>
+        )}
+
+        {dealershipVisitedAt && (
+          <div className="flex items-center gap-1 text-[11px] text-green-700 font-medium">
+            <CheckCircle2 className="h-3 w-3" />
+            Asistio al concesionario
           </div>
         )}
 
@@ -232,15 +308,20 @@ export function ContactCard({
                 <ClipboardCheck className="h-3.5 w-3.5" />
                 Marcar resultado
               </>
-            ) : primaryAction === "iniciar_tramite" ? (
+            ) : primaryAction === "gestionar_llamada" ? (
               <>
                 <Phone className="h-3.5 w-3.5" />
-                Llamar e iniciar tramite
+                {gestionado ? "Editar gestion" : "Registrar llamada"}
               </>
             ) : primaryAction === "clasificar" ? (
               <>
                 <Tag className="h-3.5 w-3.5" />
                 {classification ? "Cambiar clasificacion" : "Clasificar cliente"}
+              </>
+            ) : primaryAction === "asistio_concesionario" ? (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {dealershipVisitedAt ? "Asistencia registrada" : "Marcar asistencia"}
               </>
             ) : (
               <>

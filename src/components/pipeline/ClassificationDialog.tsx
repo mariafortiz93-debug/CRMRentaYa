@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CLASSIFICATION_CONFIG, CLASSIFICATION_ORDER } from "@/lib/constants";
 import { toast } from "sonner";
-import type { Classification } from "@/types";
+import type { Classification, ClassificationDestination } from "@/types";
 
 interface ClassificationDialogProps {
   open: boolean;
@@ -20,8 +20,8 @@ interface ClassificationDialogProps {
   contactId: string;
   currentClassification?: string | null;
   currentDetail?: string | null;
-  /** Recibe el nombre de la etapa destino ("Prospecto" | "Perdido"). */
-  onSaved?: (destination: "Prospecto" | "Perdido") => void;
+  /** Recibe el nombre de la etapa destino. */
+  onSaved?: (destination: ClassificationDestination) => void;
 }
 
 export function ClassificationDialog({

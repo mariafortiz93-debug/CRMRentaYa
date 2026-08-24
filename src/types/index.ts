@@ -18,6 +18,7 @@ export type VisitResult = "aprobado" | "negado" | "sin_proceso";
 export type ContactMethod = "whatsapp" | "call";
 
 export type Classification =
+  | "interesado"
   | "otra_marca"
   | "indeciso"
   | "sin_perfil"
@@ -26,6 +27,9 @@ export type Classification =
   | "sin_cobertura"
   | "no_le_interesa"
   | "moto_nueva";
+
+/** Etapa a la que se mueve el cliente segun su clasificacion. */
+export type ClassificationDestination = "Prospecto" | "Perdido" | "Contactado";
 
 export interface Contact {
   id: string;
@@ -51,7 +55,12 @@ export interface Contact {
   visitResult: VisitResult | null;
   visitResultDate: Date | null;
   visitResultNote: string | null;
+  stageChangedAt: Date | null;
+  approvedContactedAt: Date | null;
+  approvedContactMethod: ContactMethod | null;
   procedureStartDate: Date | null;
+  dealershipAnnouncedAt: Date | null;
+  dealershipVisitedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

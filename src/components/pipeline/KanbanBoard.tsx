@@ -19,6 +19,7 @@ import { ContactMethodDialog } from "./ContactMethodDialog";
 import { ScheduleVisitDialog } from "./ScheduleVisitDialog";
 import { VisitResultDialog } from "./VisitResultDialog";
 import { ClassificationDialog } from "./ClassificationDialog";
+import { ApprovedCallDialog } from "./ApprovedCallDialog";
 import { ContactForm } from "@/components/contacts/ContactForm";
 import { toast } from "sonner";
 import type { PipelineColumn, PipelineContact } from "@/types";
@@ -28,11 +29,12 @@ interface KanbanBoardProps {
 }
 
 function contactPrimaryAction(column: PipelineColumn): CardAction {
-  // La columna calculada de aprobados siempre ofrece iniciar tramite.
-  if (column.virtual) return "iniciar_tramite";
+  // La columna calculada de aprobados gestiona la llamada de recordatorio.
+  if (column.virtual) return "gestionar_llamada";
 
   const n = column.name.toLowerCase();
   if (n === "contactado") return "clasificar";
+  if (n === "visita al concesionario") return "asistio_concesionario";
   if (n === "registro online") return "diligenciar";
   if (n === "agendar visita" || n === "visitas reagendadas") return "agendar";
   if (n === "visita") return "reprogramar";
@@ -58,6 +60,7 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
   const [agendarContact, setAgendarContact] = useState<PipelineContact | null>(null);
   const [resultContact, setResultContact] = useState<PipelineContact | null>(null);
   const [classifyContact, setClassifyContact] = useState<PipelineContact | null>(null);
+  const [callContact, setCallContact] = useState<PipelineContact | null>(null);
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
 
   const agendarStageId =
@@ -81,23 +84,22 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     });
   };
 
-  const startProcedure = async (contact: PipelineContact) => {
-    const tramite = columns.find((c) => c.name.toLowerCase() === "inicio de tramite");
+  const markDealershipVisit = async (contact: PipelineContact) => {
     try {
       const res = await fetch(`/api/contacts/${contact.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          procedureStartDate: new Date().toISOString(),
-          stageId: tramite?.id,
-        }),
+        body: JSON.stringify({ dealershipVisited: !contact.dealershipVisitedAt }),
       });
       if (!res.ok) throw new Error("Error");
-      moveContactLocal(contact.id, "Inicio de Tramite");
-      toast.success("Tramite iniciado. Fecha registrada.");
+      toast.success(
+        contact.dealershipVisitedAt
+          ? "Asistencia desmarcada"
+          : "Asistencia al concesionario registrada"
+      );
       router.refresh();
     } catch {
-      toast.error("Error al iniciar el tramite");
+      toast.error("Error al registrar la asistencia");
     }
   };
 
@@ -110,7 +112,8 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     else if (action === "agendar" || action === "reprogramar") setAgendarContact(contact);
     else if (action === "resultado") setResultContact(contact);
     else if (action === "clasificar") setClassifyContact(contact);
-    else if (action === "iniciar_tramite") startProcedure(contact);
+    else if (action === "gestionar_llamada") setCallContact(contact);
+    else if (action === "asistio_concesionario") markDealershipVisit(contact);
   };
 
   const sensors = useSensors(
@@ -264,6 +267,9 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
               showVisitador={
                 stageName === "visita" || stageName === "visitas reagendadas"
               }
+              warnIfUnscheduled={
+                stageName === "agendar visita" || stageName === "visitas reagendadas"
+              }
               onCardAction={(id) => handleCardAction(id, column.id)}
               contacts={column.contacts.map((c) => ({
                 id: c.id,
@@ -277,6 +283,11 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
                 classification: c.classification,
                 classificationDetail: c.classificationDetail,
                 visitador: c.visitador ?? null,
+                approvedContactedAt: toMs(c.approvedContactedAt),
+                approvedContactMethod: c.approvedContactMethod,
+                procedureStartDate: toMs(c.procedureStartDate),
+                dealershipVisitedAt: toMs(c.dealershipVisitedAt),
+                stageChangedAt: toMs(c.stageChangedAt),
               }))}
             />
           );
@@ -359,6 +370,20 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
           currentNote={resultContact.visitResultNote}
           onClose={() => {
             setResultContact(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {callContact && (
+        <ApprovedCallDialog
+          open={!!callContact}
+          contactId={callContact.id}
+          contactName={callContact.name}
+          currentMethod={callContact.approvedContactMethod}
+          currentDate={toMs(callContact.procedureStartDate)}
+          onClose={() => {
+            setCallContact(null);
             router.refresh();
           }}
         />

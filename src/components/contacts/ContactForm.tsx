@@ -23,8 +23,12 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-const contactSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
+const OBLIGATORIO = "Campo obligatorio";
+const req = z.string().trim().min(1, OBLIGATORIO);
+
+/** Captura inicial del prospecto: solo nombre y telefono. */
+const createSchema = z.object({
+  name: req,
   phone: z.string(),
   phone2: z.string(),
   address: z.string(),
@@ -39,7 +43,27 @@ const contactSchema = z.object({
   notes: z.string(),
 });
 
-type ContactFormData = z.infer<typeof contactSchema>;
+/**
+ * Registro Online: todos los campos son obligatorios menos empresa y notas
+ * (empresa porque muchos clientes no la tienen; notas es un comentario libre).
+ */
+const fullSchema = z.object({
+  name: req,
+  phone: req,
+  phone2: req,
+  address: req,
+  city: req,
+  neighborhood: req,
+  identificationNumber: req,
+  expeditionCity: req,
+  companionName: req,
+  motorcycleInterest: req,
+  company: z.string(),
+  source: req,
+  notes: z.string(),
+});
+
+type ContactFormData = z.infer<typeof createSchema>;
 
 interface ContactFormProps {
   open: boolean;
@@ -63,7 +87,7 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId, onSa
     formState: { errors, isSubmitting },
     reset,
   } = useForm<ContactFormData>({
-    resolver: zodResolver(contactSchema),
+    resolver: zodResolver(isEditing ? fullSchema : createSchema),
     defaultValues: {
       name: initialData?.name || "",
       phone: initialData?.phone || "",
@@ -134,8 +158,11 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId, onSa
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Telefono</Label>
+            <Label htmlFor="phone">Telefono{isEditing ? " *" : ""}</Label>
             <Input id="phone" {...register("phone")} placeholder="+57 300 1234567" />
+            {errors.phone && (
+              <p className="text-xs text-destructive">{errors.phone.message}</p>
+            )}
           </div>
 
           {!isEditing && (
@@ -147,41 +174,70 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId, onSa
 
           {isEditing && (
             <>
+              <p className="text-xs text-muted-foreground">
+                Todos los campos son obligatorios excepto Empresa y Notas.
+              </p>
+
               <div className="space-y-2">
-                <Label htmlFor="phone2">Telefono 2 (WhatsApp)</Label>
+                <Label htmlFor="phone2">Telefono 2 (WhatsApp) *</Label>
                 <Input id="phone2" {...register("phone2")} placeholder="+57 300 1234567" />
+                {errors.phone2 && (
+                  <p className="text-xs text-destructive">{errors.phone2.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Direccion</Label>
+                <Label htmlFor="address">Direccion *</Label>
                 <Input id="address" {...register("address")} placeholder="Calle 123 #45-67" />
+                {errors.address && (
+                  <p className="text-xs text-destructive">{errors.address.message}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="city">Ciudad</Label>
+                  <Label htmlFor="city">Ciudad *</Label>
                   <Input id="city" {...register("city")} placeholder="Ciudad" />
+                  {errors.city && (
+                    <p className="text-xs text-destructive">{errors.city.message}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="neighborhood">Barrio</Label>
+                  <Label htmlFor="neighborhood">Barrio *</Label>
                   <Input id="neighborhood" {...register("neighborhood")} placeholder="Barrio" />
+                  {errors.neighborhood && (
+                    <p className="text-xs text-destructive">{errors.neighborhood.message}</p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="identificationNumber">No. de identificacion</Label>
+                  <Label htmlFor="identificationNumber">No. de identificacion *</Label>
                   <Input id="identificationNumber" {...register("identificationNumber")} placeholder="Cedula" />
+                  {errors.identificationNumber && (
+                    <p className="text-xs text-destructive">
+                      {errors.identificationNumber.message}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expeditionCity">Ciudad de expedicion</Label>
+                  <Label htmlFor="expeditionCity">Ciudad de expedicion *</Label>
                   <Input id="expeditionCity" {...register("expeditionCity")} placeholder="Ciudad de expedicion" />
+                  {errors.expeditionCity && (
+                    <p className="text-xs text-destructive">
+                      {errors.expeditionCity.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="companionName">Nombre del acompañante</Label>
+                <Label htmlFor="companionName">Nombre del acompañante *</Label>
                 <Input id="companionName" {...register("companionName")} placeholder="Nombre del acompañante" />
+                {errors.companionName && (
+                  <p className="text-xs text-destructive">{errors.companionName.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -191,7 +247,7 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId, onSa
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Como supo de la empresa</Label>
+                  <Label>Como supo de la empresa *</Label>
                   <Select
                     value={watch("source")}
                     onValueChange={(v) => v && setValue("source", v)}
@@ -209,7 +265,7 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId, onSa
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Moto de interes</Label>
+                  <Label>Moto de interes *</Label>
                   <Select
                     value={watch("motorcycleInterest")}
                     onValueChange={(v) => v && setValue("motorcycleInterest", v)}

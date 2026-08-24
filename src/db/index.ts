@@ -73,7 +73,12 @@ function initTables(db: Database.Database): void {
       visit_result TEXT,
       visit_result_date INTEGER,
       visit_result_note TEXT,
+      stage_changed_at INTEGER,
+      approved_contacted_at INTEGER,
+      approved_contact_method TEXT,
       procedure_start_date INTEGER,
+      dealership_announced_at INTEGER,
+      dealership_visited_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`,

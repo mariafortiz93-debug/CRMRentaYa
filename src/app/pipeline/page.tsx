@@ -78,12 +78,15 @@ export default async function PipelinePage({
         isLost: false,
         nextAction: "call",
         virtual: true,
-        contacts: visible.filter(
-          (c) =>
-            c.stageId === estadoStage.id &&
-            c.visitResult === "aprobado" &&
-            !c.procedureStartDate
-        ),
+        // Todos los aprobados de la etapa anterior: gestionados y sin gestionar.
+        // Los sin gestionar van primero para que salten a la vista.
+        contacts: visible
+          .filter((c) => c.stageId === estadoStage.id && c.visitResult === "aprobado")
+          .sort((a, b) => {
+            const aDone = a.approvedContactedAt ? 1 : 0;
+            const bDone = b.approvedContactedAt ? 1 : 0;
+            return aDone - bDone;
+          }),
       } as PipelineColumn);
     }
   }

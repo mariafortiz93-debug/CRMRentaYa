@@ -20,6 +20,11 @@ interface ContactCardData {
   classification: string | null;
   classificationDetail: string | null;
   visitador: string | null;
+  approvedContactedAt: number | null;
+  approvedContactMethod: string | null;
+  procedureStartDate: number | null;
+  dealershipVisitedAt: number | null;
+  stageChangedAt: number | null;
 }
 
 interface KanbanColumnProps {
@@ -33,6 +38,7 @@ interface KanbanColumnProps {
   virtual?: boolean;
   showContactInfo?: boolean;
   showVisitador?: boolean;
+  warnIfUnscheduled?: boolean;
 }
 
 export function KanbanColumn({
@@ -45,6 +51,7 @@ export function KanbanColumn({
   virtual,
   showContactInfo,
   showVisitador,
+  warnIfUnscheduled,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: virtual });
 
@@ -92,8 +99,14 @@ export function KanbanColumn({
               classification={contact.classification}
               classificationDetail={contact.classificationDetail}
               visitador={contact.visitador}
+              approvedContactedAt={contact.approvedContactedAt}
+              approvedContactMethod={contact.approvedContactMethod}
+              procedureStartDate={contact.procedureStartDate}
+              dealershipVisitedAt={contact.dealershipVisitedAt}
+              stageChangedAt={contact.stageChangedAt}
               showContactInfo={showContactInfo}
               showVisitador={showVisitador}
+              warnIfUnscheduled={warnIfUnscheduled}
               draggable={!virtual}
               onPrimaryAction={
                 onCardAction ? () => onCardAction(contact.id) : undefined

@@ -39,9 +39,29 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Contacto no encontrado" }, { status: 404 });
     }
 
+    const now = new Date();
+    const changed = existing.stageId !== body.stageId;
+
+    // Al entrar a "Visita al Concesionario" se registra que el cliente anuncio
+    // que iria; sirve para medir cuantos de esos efectivamente asistieron.
+    const target = db
+      .select()
+      .from(pipelineStages)
+      .where(eq(pipelineStages.id, body.stageId))
+      .get();
+    const entersDealership =
+      changed && target?.name.toLowerCase() === "visita al concesionario";
+
     const result = db
       .update(contacts)
-      .set({ stageId: body.stageId, updatedAt: new Date() })
+      .set({
+        stageId: body.stageId,
+        updatedAt: now,
+        ...(changed ? { stageChangedAt: now } : {}),
+        ...(entersDealership && !existing.dealershipAnnouncedAt
+          ? { dealershipAnnouncedAt: now }
+          : {}),
+      })
       .where(eq(contacts.id, body.contactId))
       .returning()
       .get();

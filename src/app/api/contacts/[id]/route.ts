@@ -70,7 +70,11 @@ export async function PUT(
   // Only allow updating specific fields
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (body.name !== undefined) updateData.name = body.name;
-  if (body.stageId !== undefined) updateData.stageId = body.stageId;
+  if (body.stageId !== undefined) {
+    updateData.stageId = body.stageId;
+    // Marca de tiempo de entrada a la etapa, para las alertas por dias sin gestion.
+    if (body.stageId !== existing.stageId) updateData.stageChangedAt = new Date();
+  }
   if (body.phone !== undefined) updateData.phone = body.phone;
   if (body.phone2 !== undefined) updateData.phone2 = body.phone2;
   if (body.address !== undefined) updateData.address = body.address;
@@ -104,6 +108,13 @@ export async function PUT(
     updateData.procedureStartDate = body.procedureStartDate
       ? new Date(body.procedureStartDate)
       : null;
+  // Gestion de la llamada al cliente aprobado.
+  if (body.approvedContactMethod !== undefined) {
+    updateData.approvedContactMethod = body.approvedContactMethod;
+    updateData.approvedContactedAt = body.approvedContactMethod ? new Date() : null;
+  }
+  if (body.dealershipVisited !== undefined)
+    updateData.dealershipVisitedAt = body.dealershipVisited ? new Date() : null;
 
   const result = db
     .update(contacts)

@@ -9,6 +9,7 @@ import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
 import { LeadSourceBreakdown } from "@/components/dashboard/LeadSourceBreakdown";
 import { VisitResultsCard } from "@/components/dashboard/VisitResultsCard";
 import { ClassificationBreakdown } from "@/components/dashboard/ClassificationBreakdown";
+import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
 import { DateRangeFilter } from "@/components/shared/DateRangeFilter";
 import { resolveDateRange, inRange } from "@/lib/dateRange";
 import { CLASSIFICATION_ORDER } from "@/lib/constants";
@@ -80,9 +81,115 @@ export default async function DashboardPage({
     }
   }
 
+  // ---- Embudo de conversion ----
+  const pct = (part: number, whole: number) =>
+    whole > 0 ? Math.round((part / whole) * 100) : 0;
+
+  const stageOrderById = new Map(stages.map((s) => [s.id, s.order]));
+  const tramiteOrder =
+    stages.find((s) => s.name.toLowerCase() === "inicio de tramite")?.order ?? Infinity;
+
+  const contactadoOrder =
+    stages.find((s) => s.name.toLowerCase() === "contactado")?.order ?? Infinity;
+
+  const totalLeads = allContacts.length;
+  // Contactado = se registro el medio, o ya avanzo mas alla de Prospecto, o
+  // ya tiene resultado de visita. Asi el embudo nunca supera el 100%.
+  const contactados = allContacts.filter(
+    (c) =>
+      c.contactMethod ||
+      c.visitResult ||
+      (stageOrderById.get(c.stageId || "") ?? -1) >= contactadoOrder
+  ).length;
+  const conVisita = allContacts.filter((c) => c.visitResult).length;
+  const aprobados = allContacts.filter((c) => c.visitResult === "aprobado").length;
+  const iniciaronTramite = allContacts.filter(
+    (c) => (stageOrderById.get(c.stageId || "") ?? -1) >= tramiteOrder
+  ).length;
+  const entregadas = allContacts.filter((c) => {
+    const stage = stages.find((s) => s.id === c.stageId);
+    return stage?.isWon;
+  }).length;
+  const perdidos = allContacts.filter((c) => {
+    const stage = stages.find((s) => s.id === c.stageId);
+    return stage?.isLost;
+  }).length;
+  const indecisos = allContacts.filter((c) => c.classification === "indeciso").length;
+
+  const funnelSteps = [
+    {
+      label: "Leads captados",
+      count: totalLeads,
+      pctOfTotal: 100,
+      pctOfPrev: null,
+      color: "#64748b",
+    },
+    {
+      label: "Contactados (llamada o WhatsApp)",
+      count: contactados,
+      pctOfTotal: pct(contactados, totalLeads),
+      pctOfPrev: pct(contactados, totalLeads),
+      prevLabel: "leads",
+      color: "#3b82f6",
+    },
+    {
+      label: "Con visita realizada",
+      count: conVisita,
+      pctOfTotal: pct(conVisita, totalLeads),
+      pctOfPrev: pct(conVisita, contactados),
+      prevLabel: "contactados",
+      color: "#d946ef",
+    },
+    {
+      label: "Aprobados",
+      count: aprobados,
+      pctOfTotal: pct(aprobados, totalLeads),
+      pctOfPrev: pct(aprobados, conVisita),
+      prevLabel: "visitados",
+      color: "#f59e0b",
+    },
+    {
+      label: "Iniciaron tramite",
+      count: iniciaronTramite,
+      pctOfTotal: pct(iniciaronTramite, totalLeads),
+      pctOfPrev: pct(iniciaronTramite, aprobados),
+      prevLabel: "aprobados",
+      color: "#ea580c",
+    },
+    {
+      label: "Moto entregada (venta)",
+      count: entregadas,
+      pctOfTotal: pct(entregadas, totalLeads),
+      pctOfPrev: pct(entregadas, iniciaronTramite),
+      prevLabel: "en tramite",
+      color: "#16a34a",
+    },
+  ];
+
+  // Conversion por fuente de captacion.
+  const sourceStats = new Map<string, { leads: number; entregadas: number }>();
+  for (const c of allContacts) {
+    const entry = sourceStats.get(c.source) || { leads: 0, entregadas: 0 };
+    entry.leads++;
+    const stage = stages.find((s) => s.id === c.stageId);
+    if (stage?.isWon) entry.entregadas++;
+    sourceStats.set(c.source, entry);
+  }
+  const bySource = [...sourceStats.entries()]
+    .map(([source, v]) => ({
+      source,
+      leads: v.leads,
+      entregadas: v.entregadas,
+      rate: pct(v.entregadas, v.leads),
+    }))
+    .sort((a, b) => b.leads - a.leads);
+
+  const dealershipAnnounced = allContacts.filter((c) => c.dealershipAnnouncedAt).length;
+  const dealershipVisited = allContacts.filter((c) => c.dealershipVisitedAt).length;
+
   // Aprobados que aun no han iniciado tramite (pendientes de contactar)
   const aprobadosPorContactar = allContacts
-    .filter((c) => c.visitResult === "aprobado" && !c.procedureStartDate)
+    .filter((c) => c.visitResult === "aprobado" && !c.approvedContactedAt)
     .map((c) => ({
       id: c.id,
       name: c.name,
@@ -178,6 +285,20 @@ export default async function DashboardPage({
           <LeadSourceBreakdown data={sourceBreakdown} />
         </div>
       </div>
+
+      <ConversionFunnel
+        totalLeads={totalLeads}
+        steps={funnelSteps}
+        overallRate={pct(entregadas, totalLeads)}
+        bySource={bySource}
+        lostPct={pct(perdidos, totalLeads)}
+        indecisoPct={pct(indecisos, totalLeads)}
+        dealership={{
+          announced: dealershipAnnounced,
+          visited: dealershipVisited,
+          rate: pct(dealershipVisited, dealershipAnnounced),
+        }}
+      />
 
       <ClassificationBreakdown
         counts={classificationCounts}
