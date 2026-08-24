@@ -1,8 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Briefcase, DollarSign } from "lucide-react";
-import { formatCurrency } from "@/lib/constants";
+import { Users, Briefcase, Bike } from "lucide-react";
 import type { DashboardStats } from "@/types";
 
 interface KPICardsProps {
@@ -19,16 +18,16 @@ export function KPICards({ stats }: KPICardsProps) {
       bgColor: "bg-blue-50",
     },
     {
-      title: "Deals Activos",
+      title: "En Proceso",
       value: stats.activeDeals.toString(),
       icon: Briefcase,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
     {
-      title: "Valor en Pipeline",
-      value: formatCurrency(stats.totalPipelineValue),
-      icon: DollarSign,
+      title: "Motos Entregadas",
+      value: stats.entregadas.toString(),
+      icon: Bike,
       color: "text-green-600",
       bgColor: "bg-green-50",
     },

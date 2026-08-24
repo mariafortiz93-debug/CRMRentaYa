@@ -86,6 +86,13 @@ export async function PUT(
   if (body.source !== undefined) updateData.source = body.source;
   if (body.score !== undefined) updateData.score = Math.max(0, Math.min(100, body.score));
   if (body.notes !== undefined) updateData.notes = body.notes;
+  if (body.contactMethod !== undefined) updateData.contactMethod = body.contactMethod;
+  if (body.classification !== undefined) {
+    updateData.classification = body.classification;
+    updateData.classificationDate = body.classification ? new Date() : null;
+  }
+  if (body.classificationDetail !== undefined)
+    updateData.classificationDetail = body.classificationDetail;
   if (body.visitResult !== undefined) {
     updateData.visitResult = body.visitResult;
     // Registrar la fecha del resultado para el contador de dias.

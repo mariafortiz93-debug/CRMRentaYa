@@ -1,4 +1,12 @@
-import type { LeadSource, ActivityType, MotorcycleInterest, NextAction, VisitResult } from "@/types";
+import type {
+  LeadSource,
+  ActivityType,
+  MotorcycleInterest,
+  NextAction,
+  VisitResult,
+  ContactMethod,
+  Classification,
+} from "@/types";
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
   redes: "Redes sociales",
@@ -28,6 +36,92 @@ export const VISIT_RESULT_CONFIG: Record<
   sin_proceso: { label: "Sin proceso", color: "#a16207", bgColor: "#fef9c3" },
   negado: { label: "Negado", color: "#b91c1c", bgColor: "#fee2e2" },
 };
+
+export const CONTACT_METHOD_CONFIG: Record<
+  ContactMethod,
+  { label: string; color: string; bgColor: string }
+> = {
+  whatsapp: { label: "Por WhatsApp", color: "#15803d", bgColor: "#dcfce7" },
+  call: { label: "Por llamada", color: "#1d4ed8", bgColor: "#dbeafe" },
+};
+
+/**
+ * Clasificacion del cliente al ser contactado.
+ * `detailLabel` pide un dato extra; `destination` define a donde se mueve despues.
+ */
+export const CLASSIFICATION_CONFIG: Record<
+  Classification,
+  {
+    label: string;
+    color: string;
+    bgColor: string;
+    detailLabel?: string;
+    destination: "Prospecto" | "Perdido";
+  }
+> = {
+  moto_nueva: {
+    label: "Moto nueva",
+    color: "#15803d",
+    bgColor: "#dcfce7",
+    detailLabel: "Que modelo de moto le interesa?",
+    destination: "Prospecto",
+  },
+  pago_mensual: {
+    label: "Pago mensual",
+    color: "#0f766e",
+    bgColor: "#ccfbf1",
+    destination: "Prospecto",
+  },
+  indeciso: {
+    label: "Indeciso",
+    color: "#a16207",
+    bgColor: "#fef9c3",
+    destination: "Prospecto",
+  },
+  otra_marca: {
+    label: "Otra marca",
+    color: "#c2410c",
+    bgColor: "#ffedd5",
+    detailLabel: "Que otra marca?",
+    destination: "Perdido",
+  },
+  otra_ciudad: {
+    label: "Otra ciudad",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    detailLabel: "En que ciudad esta ubicado?",
+    destination: "Perdido",
+  },
+  sin_perfil: {
+    label: "Sin perfil",
+    color: "#b91c1c",
+    bgColor: "#fee2e2",
+    destination: "Perdido",
+  },
+  sin_cobertura: {
+    label: "Sin cobertura",
+    color: "#b91c1c",
+    bgColor: "#fee2e2",
+    destination: "Perdido",
+  },
+  no_le_interesa: {
+    label: "No le interesa",
+    color: "#b91c1c",
+    bgColor: "#fee2e2",
+    destination: "Perdido",
+  },
+};
+
+export const CLASSIFICATION_ORDER: Classification[] = [
+  "moto_nueva",
+  "pago_mensual",
+  "indeciso",
+  "otra_marca",
+  "otra_ciudad",
+  "sin_perfil",
+  "sin_cobertura",
+  "no_le_interesa",
+];
 
 export const ACTIVITY_TYPE_CONFIG: Record<
   ActivityType,

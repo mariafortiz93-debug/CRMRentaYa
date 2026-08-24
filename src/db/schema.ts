@@ -31,6 +31,10 @@ export const contacts = sqliteTable("contacts", {
   source: text("source").notNull().default("otro"),
   score: integer("score").notNull().default(0),
   notes: text("notes"),
+  contactMethod: text("contact_method"), // whatsapp | call
+  classification: text("classification"), // otra_marca | indeciso | ...
+  classificationDetail: text("classification_detail"), // marca / ciudad / modelo
+  classificationDate: integer("classification_date", { mode: "timestamp" }),
   visitResult: text("visit_result"), // aprobado | negado | sin_proceso
   visitResultDate: integer("visit_result_date", { mode: "timestamp" }),
   visitResultNote: text("visit_result_note"),

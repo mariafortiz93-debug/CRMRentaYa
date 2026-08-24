@@ -1,8 +1,14 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { contacts, deals, pipelineStages } from "@/db/schema";
-import { eq, desc, asc } from "drizzle-orm";
-import { formatDate, formatCurrency, SOURCE_LABELS, MOTORCYCLE_LABELS, VISIT_RESULT_CONFIG } from "@/lib/constants";
+import { contacts, pipelineStages } from "@/db/schema";
+import { desc } from "drizzle-orm";
+import {
+  formatDate,
+  SOURCE_LABELS,
+  MOTORCYCLE_LABELS,
+  VISIT_RESULT_CONFIG,
+} from "@/lib/constants";
+import { resolveDateRange, inRange } from "@/lib/dateRange";
 import type { LeadSource, MotorcycleInterest, VisitResult } from "@/types";
 
 function escapeCSV(value: string | null | undefined): string {
@@ -20,42 +26,36 @@ function buildCSV(headers: string[], rows: string[][]): string {
   return [headerLine, ...dataLines].join("\n");
 }
 
+function csvResponse(csv: string, filename: string): Response {
+  // BOM para que Excel abra el CSV con acentos correctamente.
+  return new Response("﻿" + csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type") || "contacts";
   const today = new Date().toISOString().split("T")[0];
+  const range = resolveDateRange({
+    from: searchParams.get("from") || undefined,
+    to: searchParams.get("to") || undefined,
+  });
 
+  const allContacts = db
+    .select()
+    .from(contacts)
+    .orderBy(desc(contacts.createdAt))
+    .all()
+    .filter((c) => inRange(c.createdAt, range));
+
+  // Exportacion de contactos: solo los campos del formulario de registro.
   if (type === "contacts") {
-    const allContacts = db
-      .select({
-        name: contacts.name,
-        phone: contacts.phone,
-        phone2: contacts.phone2,
-        address: contacts.address,
-        city: contacts.city,
-        neighborhood: contacts.neighborhood,
-        identificationNumber: contacts.identificationNumber,
-        expeditionCity: contacts.expeditionCity,
-        companionName: contacts.companionName,
-        motorcycleInterest: contacts.motorcycleInterest,
-        company: contacts.company,
-        source: contacts.source,
-        score: contacts.score,
-        notes: contacts.notes,
-        visitResult: contacts.visitResult,
-        visitResultNote: contacts.visitResultNote,
-        procedureStartDate: contacts.procedureStartDate,
-        createdAt: contacts.createdAt,
-        stageName: pipelineStages.name,
-      })
-      .from(contacts)
-      .leftJoin(pipelineStages, eq(contacts.stageId, pipelineStages.id))
-      .orderBy(desc(contacts.createdAt))
-      .all();
-
     const headers = [
       "Nombre",
-      "Etapa",
       "Telefono",
       "Telefono 2",
       "Direccion",
@@ -66,18 +66,12 @@ export async function GET(request: NextRequest) {
       "Acompañante",
       "Moto de Interes",
       "Empresa",
-      "Fuente",
-      "Resultado Visita",
-      "Motivo Resultado",
-      "Inicio Tramite",
-      "Score",
+      "Como supo de la empresa",
       "Notas",
-      "Fecha de creacion",
     ];
 
     const rows = allContacts.map((c) => [
       c.name,
-      c.stageName || "",
       c.phone || "",
       c.phone2 || "",
       c.address || "",
@@ -86,78 +80,86 @@ export async function GET(request: NextRequest) {
       c.identificationNumber || "",
       c.expeditionCity || "",
       c.companionName || "",
-      MOTORCYCLE_LABELS[c.motorcycleInterest as MotorcycleInterest] || c.motorcycleInterest || "",
+      MOTORCYCLE_LABELS[c.motorcycleInterest as MotorcycleInterest] ||
+        c.motorcycleInterest ||
+        "",
       c.company || "",
       SOURCE_LABELS[c.source as LeadSource] || c.source,
-      c.visitResult ? VISIT_RESULT_CONFIG[c.visitResult as VisitResult]?.label || c.visitResult : "",
-      c.visitResultNote || "",
-      c.procedureStartDate ? formatDate(c.procedureStartDate) : "",
-      String(c.score),
       c.notes || "",
-      formatDate(c.createdAt),
     ]);
 
-    const csv = buildCSV(headers, rows);
-
-    return new Response("\ufeff" + csv, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="contactos-${today}.csv"`,
-      },
-    });
+    return csvResponse(buildCSV(headers, rows), `contactos-${today}.csv`);
   }
 
-  if (type === "deals") {
-    const allDeals = db
-      .select({
-        title: deals.title,
-        value: deals.value,
-        probability: deals.probability,
-        notes: deals.notes,
-        expectedClose: deals.expectedClose,
-        createdAt: deals.createdAt,
-        contactName: contacts.name,
-        stageName: pipelineStages.name,
-      })
-      .from(deals)
-      .leftJoin(contacts, eq(deals.contactId, contacts.id))
-      .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
-      .orderBy(asc(pipelineStages.order))
-      .all();
+  /**
+   * Plantilla de estados de visita: se descarga, se completa la columna
+   * "Estado Visita" en la otra plataforma y se vuelve a importar.
+   */
+  if (type === "visit-states") {
+    const stages = db.select().from(pipelineStages).all();
+    const stageById = new Map(stages.map((s) => [s.id, s]));
+
+    // Clientes que ya tienen visita registrada o estan en etapas posteriores.
+    const relevant = allContacts.filter((c) => {
+      const stageName = (stageById.get(c.stageId || "")?.name || "").toLowerCase();
+      return (
+        c.visitResult !== null ||
+        ["visita", "visitas reagendadas", "estado de la visita"].includes(stageName)
+      );
+    });
 
     const headers = [
-      "Titulo",
-      "Valor",
-      "Contacto",
+      "No. Identificacion",
+      "Nombre",
+      "Telefono",
       "Etapa",
-      "Probabilidad",
-      "Cierre Estimado",
-      "Notas",
-      "Fecha de creacion",
+      "Estado Visita",
+      "Motivo",
     ];
 
-    const rows = allDeals.map((d) => [
-      d.title,
-      formatCurrency(d.value),
-      d.contactName || "",
-      d.stageName || "",
-      `${d.probability}%`,
-      formatDate(d.expectedClose),
-      d.notes || "",
-      formatDate(d.createdAt),
+    const rows = relevant.map((c) => [
+      c.identificationNumber || "",
+      c.name,
+      c.phone || "",
+      stageById.get(c.stageId || "")?.name || "",
+      c.visitResult
+        ? VISIT_RESULT_CONFIG[c.visitResult as VisitResult]?.label || c.visitResult
+        : "",
+      c.visitResultNote || "",
     ]);
 
-    const csv = buildCSV(headers, rows);
-
-    return new Response("\ufeff" + csv, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="deals-${today}.csv"`,
-      },
-    });
+    return csvResponse(buildCSV(headers, rows), `estados-visita-${today}.csv`);
   }
 
-  return new Response("Tipo invalido. Use ?type=contacts o ?type=deals", {
-    status: 400,
-  });
+  // Resultados de visita ya definidos, para reportes.
+  if (type === "visit-results") {
+    const headers = [
+      "No. Identificacion",
+      "Nombre",
+      "Telefono",
+      "Estado Visita",
+      "Motivo",
+      "Fecha Resultado",
+      "Inicio Tramite",
+    ];
+
+    const rows = allContacts
+      .filter((c) => c.visitResult)
+      .map((c) => [
+        c.identificationNumber || "",
+        c.name,
+        c.phone || "",
+        VISIT_RESULT_CONFIG[c.visitResult as VisitResult]?.label || c.visitResult || "",
+        c.visitResultNote || "",
+        c.visitResultDate ? formatDate(c.visitResultDate) : "",
+        c.procedureStartDate ? formatDate(c.procedureStartDate) : "",
+      ]);
+
+    return csvResponse(buildCSV(headers, rows), `resultados-visita-${today}.csv`);
+  }
+
+  return new Response(
+    "Tipo invalido. Use ?type=contacts, visit-states o visit-results",
+    { status: 400 }
+  );
 }

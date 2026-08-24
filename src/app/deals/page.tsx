@@ -13,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { Plus, Briefcase, Download } from "lucide-react";
+import { Plus, Briefcase } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/constants";
 import { DealForm } from "@/components/deals/DealForm";
 
@@ -54,14 +54,6 @@ export default function DealsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => window.open("/api/export?type=deals")}
-            className="cursor-pointer"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
-          </Button>
           <Button onClick={() => setShowForm(true)} className="cursor-pointer">
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Deal

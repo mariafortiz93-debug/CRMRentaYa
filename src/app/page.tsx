@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { db } from "@/db";
-import { contacts, deals, activities, pipelineStages } from "@/db/schema";
+import { contacts, activities, pipelineStages } from "@/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import { KPICards } from "@/components/dashboard/KPICards";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
@@ -7,38 +8,41 @@ import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
 import { LeadSourceBreakdown } from "@/components/dashboard/LeadSourceBreakdown";
 import { VisitResultsCard } from "@/components/dashboard/VisitResultsCard";
+import { ClassificationBreakdown } from "@/components/dashboard/ClassificationBreakdown";
+import { DateRangeFilter } from "@/components/shared/DateRangeFilter";
+import { resolveDateRange, inRange } from "@/lib/dateRange";
+import { CLASSIFICATION_ORDER } from "@/lib/constants";
 import type { DashboardStats } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
-  const allContacts = db.select().from(contacts).all();
-  const allDeals = db.select().from(deals).all();
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const params = await searchParams;
+  const range = resolveDateRange(params);
+
+  const everyContact = db.select().from(contacts).all();
+  const allContacts = everyContact.filter((c) => inRange(c.createdAt, range));
+
   const stages = db
     .select()
     .from(pipelineStages)
     .orderBy(asc(pipelineStages.order))
     .all();
 
-  const activeDeals = allDeals.filter((d) => {
-    const stage = stages.find((s) => s.id === d.stageId);
-    return stage && !stage.isWon && !stage.isLost;
-  });
-
-  const wonDeals = allDeals.filter((d) => {
-    const stage = stages.find((s) => s.id === d.stageId);
-    return stage?.isWon;
-  });
-
   const stats: DashboardStats = {
     totalContacts: allContacts.length,
-    activeDeals: activeDeals.length,
-    totalPipelineValue: activeDeals.reduce((sum, d) => sum + d.value, 0),
-    wonDealsValue: wonDeals.reduce((sum, d) => sum + d.value, 0),
-    conversionRate:
-      allDeals.length > 0
-        ? Math.round((wonDeals.length / allDeals.length) * 100)
-        : 0,
+    activeDeals: allContacts.filter((c) => {
+      const stage = stages.find((s) => s.id === c.stageId);
+      return stage && !stage.isWon && !stage.isLost;
+    }).length,
+    entregadas: allContacts.filter((c) => {
+      const stage = stages.find((s) => s.id === c.stageId);
+      return stage?.isWon;
+    }).length,
   };
 
   const pipelineData = stages
@@ -61,6 +65,20 @@ export default function DashboardPage() {
     sin_proceso: allContacts.filter((c) => c.visitResult === "sin_proceso").length,
     negado: allContacts.filter((c) => c.visitResult === "negado").length,
   };
+
+  // Conteo y detalles (marcas, ciudades, modelos) de las clasificaciones.
+  const classificationCounts: Record<string, number> = {};
+  const classificationDetails: Record<string, string[]> = {};
+  for (const key of CLASSIFICATION_ORDER) classificationCounts[key] = 0;
+  for (const c of allContacts) {
+    if (!c.classification) continue;
+    classificationCounts[c.classification] =
+      (classificationCounts[c.classification] || 0) + 1;
+    if (c.classificationDetail) {
+      const list = (classificationDetails[c.classification] ||= []);
+      if (!list.includes(c.classificationDetail)) list.push(c.classificationDetail);
+    }
+  }
 
   // Aprobados que aun no han iniciado tramite (pendientes de contactar)
   const aprobadosPorContactar = allContacts
@@ -86,15 +104,24 @@ export default function DashboardPage() {
     .limit(5)
     .all();
 
-  const isFirstRun = allContacts.length === 0 && allDeals.length === 0;
+  const isFirstRun = everyContact.length === 0;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Resumen de tu pipeline de ventas
-        </p>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Resumen de tu pipeline de ventas
+          </p>
+        </div>
+        <Suspense fallback={null}>
+          <DateRangeFilter
+            from={range.fromParam}
+            to={range.toParam}
+            hint="Leads creados"
+          />
+        </Suspense>
       </div>
 
       {isFirstRun && (
@@ -151,6 +178,11 @@ export default function DashboardPage() {
           <LeadSourceBreakdown data={sourceBreakdown} />
         </div>
       </div>
+
+      <ClassificationBreakdown
+        counts={classificationCounts}
+        details={classificationDetails}
+      />
 
       <VisitResultsCard counts={visitResultCounts} aprobados={aprobadosPorContactar} />
     </div>

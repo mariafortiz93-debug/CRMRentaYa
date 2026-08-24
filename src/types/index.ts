@@ -15,6 +15,18 @@ export type NextAction = "call" | "whatsapp";
 
 export type VisitResult = "aprobado" | "negado" | "sin_proceso";
 
+export type ContactMethod = "whatsapp" | "call";
+
+export type Classification =
+  | "otra_marca"
+  | "indeciso"
+  | "sin_perfil"
+  | "pago_mensual"
+  | "otra_ciudad"
+  | "sin_cobertura"
+  | "no_le_interesa"
+  | "moto_nueva";
+
 export interface Contact {
   id: string;
   name: string;
@@ -32,6 +44,10 @@ export interface Contact {
   source: LeadSource;
   score: number;
   notes: string | null;
+  contactMethod: ContactMethod | null;
+  classification: Classification | null;
+  classificationDetail: string | null;
+  classificationDate: Date | null;
   visitResult: VisitResult | null;
   visitResultDate: Date | null;
   visitResultNote: string | null;
@@ -119,14 +135,22 @@ export interface ContactWithDeals extends Contact {
   activities?: Activity[];
 }
 
+/** Contacto en el tablero, con el visitador de su visita mas reciente. */
+export interface PipelineContact extends Contact {
+  visitador?: string | null;
+  visitScheduledAt?: Date | null;
+}
+
 export interface PipelineColumn extends PipelineStage {
-  contacts: Contact[];
+  contacts: PipelineContact[];
+  /** Columna calculada (no es una etapa real; sus tarjetas viven en otra columna). */
+  virtual?: boolean;
 }
 
 export interface DashboardStats {
   totalContacts: number;
+  /** Contactos en etapas abiertas (ni ganadas ni perdidas). */
   activeDeals: number;
-  totalPipelineValue: number;
-  wonDealsValue: number;
-  conversionRate: number;
+  /** Contactos que llegaron a "Moto Entregada". */
+  entregadas: number;
 }

@@ -14,27 +14,37 @@ import {
   type DragOverEvent,
 } from "@dnd-kit/core";
 import { KanbanColumn } from "./KanbanColumn";
-import { ContactCard } from "./ContactCard";
+import { ContactCard, type CardAction } from "./ContactCard";
 import { ContactMethodDialog } from "./ContactMethodDialog";
 import { ScheduleVisitDialog } from "./ScheduleVisitDialog";
 import { VisitResultDialog } from "./VisitResultDialog";
+import { ClassificationDialog } from "./ClassificationDialog";
 import { ContactForm } from "@/components/contacts/ContactForm";
 import { toast } from "sonner";
-import type { PipelineColumn, Contact } from "@/types";
+import type { PipelineColumn, PipelineContact } from "@/types";
 
 interface KanbanBoardProps {
   initialColumns: PipelineColumn[];
 }
 
-type PrimaryAction = "diligenciar" | "agendar" | "reprogramar" | "resultado" | null;
+function contactPrimaryAction(column: PipelineColumn): CardAction {
+  // La columna calculada de aprobados siempre ofrece iniciar tramite.
+  if (column.virtual) return "iniciar_tramite";
 
-function stagePrimaryAction(name: string): PrimaryAction {
-  const n = name.toLowerCase();
+  const n = column.name.toLowerCase();
+  if (n === "contactado") return "clasificar";
   if (n === "registro online") return "diligenciar";
   if (n === "agendar visita" || n === "visitas reagendadas") return "agendar";
   if (n === "visita") return "reprogramar";
+  // En "Estado de la Visita" siempre se puede corregir el resultado; las llamadas
+  // para iniciar tramite se gestionan desde la columna "Clientes Aprobados".
   if (n === "estado de la visita") return "resultado";
   return null;
+}
+
+function toMs(d: Date | number | null | undefined): number | null {
+  if (!d) return null;
+  return new Date(d).getTime();
 }
 
 export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
@@ -44,9 +54,10 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
   const [pendingMove, setPendingMove] = useState<{ contactId: string; stageId: string } | null>(
     null
   );
-  const [diligenciarContact, setDiligenciarContact] = useState<Contact | null>(null);
-  const [agendarContact, setAgendarContact] = useState<Contact | null>(null);
-  const [resultContact, setResultContact] = useState<Contact | null>(null);
+  const [diligenciarContact, setDiligenciarContact] = useState<PipelineContact | null>(null);
+  const [agendarContact, setAgendarContact] = useState<PipelineContact | null>(null);
+  const [resultContact, setResultContact] = useState<PipelineContact | null>(null);
+  const [classifyContact, setClassifyContact] = useState<PipelineContact | null>(null);
   const columnsSnapshot = useRef<PipelineColumn[]>(initialColumns);
 
   const agendarStageId =
@@ -70,14 +81,36 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     });
   };
 
-  const handleCardAction = (contactId: string) => {
-    const contact = columns.flatMap((c) => c.contacts).find((c) => c.id === contactId);
-    if (!contact) return;
-    const column = columns.find((c) => c.contacts.some((x) => x.id === contactId));
-    const action = column ? stagePrimaryAction(column.name) : null;
+  const startProcedure = async (contact: PipelineContact) => {
+    const tramite = columns.find((c) => c.name.toLowerCase() === "inicio de tramite");
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          procedureStartDate: new Date().toISOString(),
+          stageId: tramite?.id,
+        }),
+      });
+      if (!res.ok) throw new Error("Error");
+      moveContactLocal(contact.id, "Inicio de Tramite");
+      toast.success("Tramite iniciado. Fecha registrada.");
+      router.refresh();
+    } catch {
+      toast.error("Error al iniciar el tramite");
+    }
+  };
+
+  const handleCardAction = (contactId: string, columnId: string) => {
+    const column = columns.find((c) => c.id === columnId);
+    const contact = column?.contacts.find((c) => c.id === contactId);
+    if (!column || !contact) return;
+    const action = contactPrimaryAction(column);
     if (action === "diligenciar") setDiligenciarContact(contact);
     else if (action === "agendar" || action === "reprogramar") setAgendarContact(contact);
     else if (action === "resultado") setResultContact(contact);
+    else if (action === "clasificar") setClassifyContact(contact);
+    else if (action === "iniciar_tramite") startProcedure(contact);
   };
 
   const sensors = useSensors(
@@ -105,12 +138,12 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     const overId = over.id as string;
 
     // Find which columns the items are in
-    const activeColumn = columns.find((col) =>
-      col.contacts.some((c) => c.id === activeId)
+    const activeColumn = columns.find(
+      (col) => !col.virtual && col.contacts.some((c) => c.id === activeId)
     );
     const overColumn =
-      columns.find((col) => col.id === overId) ||
-      columns.find((col) => col.contacts.some((c) => c.id === overId));
+      columns.find((col) => !col.virtual && col.id === overId) ||
+      columns.find((col) => !col.virtual && col.contacts.some((c) => c.id === overId));
 
     if (!activeColumn || !overColumn || activeColumn.id === overColumn.id)
       return;
@@ -148,6 +181,12 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
         if (!res.ok) throw new Error("API error");
 
         if (contactMethod) {
+          // Guardar el medio en el contacto (se muestra en la tarjeta) y dejar traza.
+          await fetch(`/api/contacts/${contactId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contactMethod }),
+          });
           await fetch("/api/activities", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -160,6 +199,14 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
               contactId,
             }),
           });
+          setColumns((prev) =>
+            prev.map((col) => ({
+              ...col,
+              contacts: col.contacts.map((c) =>
+                c.id === contactId ? { ...c, contactMethod } : c
+              ),
+            }))
+          );
         }
       } catch {
         // Rollback to pre-drag state
@@ -179,8 +226,8 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
 
       const activeId = active.id as string;
       const overColumn =
-        columns.find((col) => col.id === over.id) ||
-        columns.find((col) => col.contacts.some((c) => c.id === over.id));
+        columns.find((col) => !col.virtual && col.id === over.id) ||
+        columns.find((col) => !col.virtual && col.contacts.some((c) => c.id === over.id));
 
       if (!overColumn) return;
 
@@ -203,23 +250,37 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.map((column) => (
-          <KanbanColumn
-            key={column.id}
-            id={column.id}
-            name={column.name}
-            color={column.color}
-            nextAction={column.nextAction}
-            primaryAction={stagePrimaryAction(column.name)}
-            onCardAction={handleCardAction}
-            contacts={column.contacts.map((c) => ({
-              id: c.id,
-              name: c.name,
-              phone: c.phone,
-              source: c.source,
-            }))}
-          />
-        ))}
+        {columns.map((column) => {
+          const stageName = column.name.toLowerCase();
+          return (
+            <KanbanColumn
+              key={column.id}
+              id={column.id}
+              name={column.name}
+              color={column.color}
+              nextAction={column.nextAction}
+              virtual={column.virtual}
+              showContactInfo={stageName === "contactado"}
+              showVisitador={
+                stageName === "visita" || stageName === "visitas reagendadas"
+              }
+              onCardAction={(id) => handleCardAction(id, column.id)}
+              contacts={column.contacts.map((c) => ({
+                id: c.id,
+                name: c.name,
+                phone: c.phone,
+                source: c.source,
+                primaryAction: contactPrimaryAction(column),
+                visitResult: c.visitResult,
+                visitResultDate: toMs(c.visitResultDate),
+                contactMethod: c.contactMethod,
+                classification: c.classification,
+                classificationDetail: c.classificationDetail,
+                visitador: c.visitador ?? null,
+              }))}
+            />
+          );
+        })}
       </div>
 
       <DragOverlay>
@@ -298,6 +359,26 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
           currentNote={resultContact.visitResultNote}
           onClose={() => {
             setResultContact(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {classifyContact && (
+        <ClassificationDialog
+          open={!!classifyContact}
+          contactId={classifyContact.id}
+          currentClassification={classifyContact.classification}
+          currentDetail={classifyContact.classificationDetail}
+          onSaved={async (destination) => {
+            const target = columns.find(
+              (c) => !c.virtual && c.name.toLowerCase() === destination.toLowerCase()
+            );
+            moveContactLocal(classifyContact.id, destination);
+            if (target) await commitMove(classifyContact.id, target.id);
+          }}
+          onClose={() => {
+            setClassifyContact(null);
             router.refresh();
           }}
         />
