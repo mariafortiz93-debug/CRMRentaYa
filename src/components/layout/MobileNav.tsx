@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -28,9 +29,14 @@ export function MobileNav() {
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">
-      <div className="flex h-16 items-center gap-2 px-6 border-b border-[var(--sidebar-border)]">
-        <Briefcase className="h-6 w-6 text-[var(--sidebar-primary)]" />
-        <span className="text-lg font-bold tracking-tight">Auto-CRM</span>
+      <div className="flex h-16 items-center px-6 border-b border-[var(--sidebar-border)]">
+        <Image
+          src="/logo-renta-ya-blanco.png"
+          alt="Renta Ya Motocicletas"
+          width={720}
+          height={124}
+          className="h-8 w-auto"
+        />
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">

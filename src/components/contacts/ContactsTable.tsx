@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -12,21 +12,58 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { Search, Users, Download } from "lucide-react";
+import { Search, Users, Download, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import { SOURCE_LABELS } from "@/lib/constants";
+import { toast } from "sonner";
 import type { Contact, LeadSource, PipelineStage } from "@/types";
 
 interface ContactsTableProps {
   contacts: Contact[];
   stages: PipelineStage[];
+  /** Se llama tras eliminar, para que la pagina recargue la lista. */
+  onChanged?: () => void;
 }
 
-export function ContactsTable({ contacts, stages }: ContactsTableProps) {
+export function ContactsTable({ contacts, stages, onChanged }: ContactsTableProps) {
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [toDelete, setToDelete] = useState<Contact | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const inFlight = useRef(false);
+
+  const handleDelete = async () => {
+    // Doble candado: si ya hay un borrado en curso, o el dialogo ya se cerro,
+    // no se dispara otra vez. Evita que un re-render encadene borrados.
+    if (!toDelete || inFlight.current) return;
+    inFlight.current = true;
+
+    const target = toDelete;
+    // Cerrar el dialogo ANTES del await: a partir de aqui `toDelete` es null,
+    // asi que cualquier clic fantasma cae en el guard de arriba.
+    setToDelete(null);
+    setDeleting(true);
+
+    try {
+      const res = await fetch(`/api/contacts/${target.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error");
+      toast.success(`"${target.name.trim()}" eliminado`);
+      onChanged?.();
+    } catch {
+      toast.error("Error al eliminar el contacto");
+    } finally {
+      setDeleting(false);
+      inFlight.current = false;
+    }
+  };
 
   const filtered = contacts.filter((c) => {
     return (
@@ -85,6 +122,7 @@ export function ContactsTable({ contacts, stages }: ContactsTableProps) {
               <TableHead className="hidden md:table-cell">Fuente</TableHead>
               <TableHead className="hidden md:table-cell">Score</TableHead>
               <TableHead className="hidden lg:table-cell">Fecha</TableHead>
+              <TableHead className="w-10 text-right">Accion</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -137,6 +175,19 @@ export function ContactsTable({ contacts, stages }: ContactsTableProps) {
                 <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                   {formatDate(contact.createdAt)}
                 </TableCell>
+                <TableCell className="text-right">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setToDelete(contact);
+                    }}
+                    className="p-1.5 rounded hover:bg-destructive/10 cursor-pointer"
+                    title={`Eliminar ${contact.name.trim()}`}
+                    aria-label={`Eliminar ${contact.name.trim()}`}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -146,6 +197,39 @@ export function ContactsTable({ contacts, stages }: ContactsTableProps) {
       <p className="text-xs text-muted-foreground text-center">
         {filtered.length} de {contacts.length} contactos
       </p>
+
+      <Dialog open={!!toDelete} onOpenChange={(v) => !v && setToDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar contacto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm">
+              Vas a eliminar a <strong>{toDelete?.name.trim()}</strong>. Se borran
+              tambien sus actividades y visitas agendadas.
+            </p>
+            <p className="text-sm text-destructive">
+              Esta accion no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setToDelete(null)}
+                className="cursor-pointer"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="cursor-pointer bg-destructive text-white hover:bg-destructive/90"
+              >
+                {deleting ? "Eliminando..." : "Si, eliminar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

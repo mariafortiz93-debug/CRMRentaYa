@@ -56,7 +56,11 @@ export default function ContactsPage() {
           ))}
         </div>
       ) : (
-        <ContactsTable contacts={contacts} stages={stages} />
+        <ContactsTable
+          contacts={contacts}
+          stages={stages}
+          onChanged={loadContacts}
+        />
       )}
 
       <ContactForm open={showForm} onClose={handleCloseForm} />
