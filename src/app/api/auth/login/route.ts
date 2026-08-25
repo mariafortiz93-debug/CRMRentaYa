@@ -19,7 +19,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "El CRM no tiene clave configurada. Define la variable CRM_PASSWORD en el servidor.",
+          "Este servidor no tiene clave configurada. Define CRM_PASSWORD donde " +
+          "se esta ejecutando el CRM: en Docker con env_file, y en un hosting " +
+          "como variable de entorno. El archivo .env.local de tu computador no " +
+          "viaja con la aplicacion.",
       },
       { status: 500 }
     );

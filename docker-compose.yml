@@ -8,8 +8,11 @@ services:
       - ./data:/app/data
       # Persist user config
       - ./crm-config.json:/app/crm-config.json
+    # La clave de acceso NO se copia dentro de la imagen (.dockerignore excluye
+    # .env*), asi que se inyecta al arrancar leyendo el archivo local.
+    # Debe existir .env.local con CRM_PASSWORD=... junto a este archivo.
+    env_file:
+      - .env.local
     environment:
       - NODE_ENV=production
-      # Optional: uncomment and set your API key for AI features
-      # - ANTHROPIC_API_KEY=sk-ant-...
     restart: unless-stopped
