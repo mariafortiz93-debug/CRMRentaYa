@@ -1,153 +1,264 @@
-# CLAUDE.md — Auto-CRM
+# CLAUDE.md — CRM Renta Ya Motocicletas
 
-> Este es un CRM completo y local que se personaliza a cada negocio.
-> Cuando un usuario abre este proyecto con Claude Code, tu trabajo es ayudarle a configurarlo,
-> usarlo, y expandirlo segun sus necesidades. Todo corre en su maquina — sin servicios externos.
+> **Este archivo es la memoria del proyecto.** Claude Code lo carga solo al
+> iniciar cualquier sesion nueva, asi que aqui vive todo el contexto.
+>
+> **REGLA PARA CLAUDE: cada vez que hagas un cambio que altere el
+> funcionamiento, el modelo de datos, el despliegue o los pendientes,
+> actualiza este archivo en el mismo commit.** Manten la seccion
+> "Historial de cambios" al dia. Si algo aqui ya no es cierto, corrigelo.
 
-## Inicio rapido para el usuario
+---
 
-Si es la primera vez que el usuario abre el proyecto, guialo con estos pasos:
+## El negocio
 
-1. `npm install` — Instalar dependencias
-2. `npm run init:seed` — Inicializar base de datos con datos demo
-3. `npm run dev` — Iniciar servidor en http://localhost:3000
-4. Ejecutar `/setup` para personalizar el CRM a su negocio
+**Renta Ya Motocicletas** — alquiler de motos con opcion de compra, en
+Cartagena (Colombia).
 
-## Comandos
+- **Motos**: Boxer CT100 KS y Boxer CT100 ES
+- **Planes**: Asalariado y Trabajo
+- **Fuentes de leads**: redes, referido, volanteo, concesionario, otro
+- **Visitadores** (hacen visitas a domicilio): Richard, Hugo, Jaime
+- **Equipo**: Oscar, Kelly, Richard, Katia y Maria (directora comercial)
+- **Idioma**: todo en espanol. Sin tildes en el codigo y los textos de UI,
+  para evitar problemas de codificacion.
 
-```bash
-npm run dev          # Servidor de desarrollo (http://localhost:3000)
-npm run build        # Build de produccion
-npm start            # Servidor de produccion
-npm run local        # Build + init + start (despliegue local en un comando)
-npm run init         # Inicializar base de datos
-npm run init:seed    # Inicializar + datos demo
-npm run seed         # Solo datos demo
-npm run lint         # ESLint
-npm run mcp          # Iniciar servidor MCP (para Claude Desktop/Web)
-```
+---
 
-## Comandos interactivos disponibles
+## Estado actual
 
-| Comando | Que hace |
-|---------|----------|
-| `/setup` | Personalizar CRM: pipeline, fuentes de leads, industria, idioma, tema |
-| `/add-lead` | Agregar un lead conversacionalmente — describe al prospecto y se crea automaticamente |
-| `/analyze-pipeline` | Analisis completo del pipeline con recomendaciones accionables |
-| `/daily-briefing` | Resumen ejecutivo del dia: follow-ups, deals prioritarios, prioridades |
-| `/import-contacts` | Importar contactos desde un archivo CSV |
-| `/customize` | Cambiar configuracion sin reiniciar todo |
-| `/connect` | Conectar CRM con Gmail, Calendar, Sheets, WhatsApp via MCP |
-| `/digest` | Enviar resumen diario por email (requiere Resend) |
+| | |
+|---|---|
+| **En produccion** | https://crmrentaya-production-b3bf.up.railway.app |
+| **Hosting** | Railway (despliega solo al hacer push a `main`) |
+| **Repositorio activo** | https://github.com/mariafortiz93-debug/CRMRentaYa (remote `crmrentaya`) |
+| **Repositorio antiguo** | `mariafortiz93-debug/auto-crm-motos` (remote `mine`) — duplicado, se puede borrar |
+| **Plantilla original** | `Hainrixz/auto-crm` (remote `origin`) — ya no se usa |
+
+### Pendientes importantes
+
+1. **Volumen persistente en Railway** — SIN CONFIRMAR. Settings → Volumes con
+   *Mount path* = `/app/data`. **Sin esto, cada despliegue borra todos los
+   datos de clientes.** Es lo mas critico del proyecto.
+2. **Cambiar `CRM_PASSWORD`** — hoy es `RentaYa2026`, una clave provisional que
+   quedo escrita en conversaciones.
+3. **Repositorio publico** — el codigo es visible para cualquiera. Los datos de
+   clientes NO estan en el repo, pero conviene pasarlo a privado.
+4. **Compartir con el equipo** — pendiente repartir enlace y clave a los 5.
+
+---
+
+## Flujo comercial (el pipeline)
+
+11 etapas, definidas en `crm-config.json`:
+
+| # | Etapa | Que pasa ahi |
+|---|-------|--------------|
+| 1 | **Prospecto** | Entra el lead. Solo se piden **nombre y telefono**. |
+| 2 | **Contactado** | Al mover aqui se pregunta si fue por WhatsApp o llamada. Se clasifica al cliente y se marca su **plan**. |
+| 3 | **Visita al Concesionario** | El cliente dijo que iria. Boton "Marcar asistencia" para registrar si fue. |
+| 4 | **Registro Online** | Boton "Diligenciar formulario": se completan **todos** los datos. Al guardar pasa solo a Agendar Visita. |
+| 5 | **Agendar Visita** | Se asigna visitador, fecha, hora y barrio. Alerta roja a los **2 dias** sin agendar. |
+| 6 | **Visita** | Visita agendada. Se puede reprogramar. |
+| 7 | **Visitas Reagendadas** | Clientes que no contestaron y hay que volver a llamar. |
+| 8 | **Estado de la Visita** | Se marca **Aprobado / Negado / Sin proceso**. Negado y Sin proceso exigen motivo. |
+| — | **Clientes Aprobados** | **Columna calculada, no es una etapa real.** Muestra los aprobados de la etapa 8; aparecen en ambas columnas. Aqui se gestionan las llamadas. |
+| 9 | **Inicio de Tramite** | El cliente arranco el proceso de compra. |
+| 10 | **Moto Entregada** | Venta cerrada (`isWon`). |
+| 11 | **Perdido** | Fuera del embudo (`isLost`). |
+
+### Clasificacion del cliente (etapa Contactado)
+
+Cada una define a donde se mueve el cliente al guardar:
+
+| Clasificacion | Pide detalle | Destino |
+|---|---|---|
+| Interesado | — | Se queda en Contactado |
+| Moto nueva | Que modelo | Prospecto |
+| Pago mensual | — | Prospecto |
+| Indeciso | — | Prospecto |
+| Otra marca | Cual marca | Perdido |
+| Otra ciudad | Cual ciudad | Perdido |
+| Sin perfil | — | Perdido |
+| Sin cobertura | — | Perdido |
+| No le interesa | — | Perdido |
+
+### Gestion de aprobados
+
+Cada llamada o WhatsApp queda como **registro historico** (tabla
+`management_logs`), no se sobrescribe. Se guarda medio, si contesto, la fecha
+que prometio y el motivo por el que aun no inicia:
+
+- No tiene el valor inicial completo
+- El acompañante no ha tenido disponibilidad
+- Documentacion incompleta (RUNT / notaria)
+- Novedad personal (tiempo, calamidad, disponibilidad)
+- **Desistio del proceso** → mueve el cliente a Perdido automaticamente
+- Otra (texto libre)
+
+Alerta roja a los **3 dias** sin gestionar.
+
+---
 
 ## Arquitectura
 
-**Stack**: Next.js 16 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 · shadcn/ui · SQLite + Drizzle ORM · @dnd-kit (kanban)
-
-**100% local**: SQLite como base de datos (archivo en `data/crm.db`). No requiere ningun servicio externo.
+**Stack**: Next.js 16 (App Router) · React 19 · TypeScript strict ·
+Tailwind CSS v4 · shadcn/ui · SQLite + Drizzle ORM · @dnd-kit
 
 **Alias**: `@/*` → `./src/*`
 
-### Directorios clave
+### Directorios
 
-- `src/app/` — Paginas y API routes (App Router)
-- `src/components/` — Componentes React organizados por feature
-- `src/db/` — Schema Drizzle, cliente DB, seeder
-- `src/lib/` — Utilidades: constants.ts
-- `src/types/` — TypeScript types para entidades CRM
-- `.claude/commands/` — Comandos interactivos (los de la tabla arriba)
-- `mcp/` — Servidor MCP para integracion con Claude Desktop/Web
-- `scripts/` — Scripts de inicializacion y utilidades
+- `src/app/` — paginas y API routes
+- `src/components/pipeline/` — tablero, tarjetas y dialogos del pipeline
+- `src/components/contacts/` — tabla, ficha y formulario de contactos
+- `src/components/dashboard/` — KPIs, embudo, graficas
+- `src/db/` — `schema.ts`, `index.ts` (cliente), `stages.ts` (etapas)
+- `src/lib/` — `constants.ts` (etiquetas), `auth.ts`, `dateRange.ts`
+- `scripts/init.ts` — crea tablas y etapas. Corre al arrancar el contenedor.
 
 ### Modelo de datos
 
-- **Contacts**: Leads con score, fuente, historial
-- **Deals**: Oportunidades de venta con valor (en centavos), etapa, probabilidad
-- **Activities**: Interacciones (llamada/email/reunion/nota/follow-up) con fechas
-- **Pipeline Stages**: Etapas configurables del pipeline de ventas
-- **CRM Settings**: Configuracion key-value
+**contacts** — el centro de todo. El contacto avanza por el pipeline el mismo
+(`stage_id`); los "deals" quedaron sin uso real.
+
+Campos propios del negocio: `phone2`, `address`, `city`, `neighborhood`,
+`identification_number`, `expedition_city`, `companion_name`,
+`motorcycle_interest`, `plan`, `source`, `contact_method`, `classification` +
+`classification_detail`, `visit_result` + `visit_result_note` + fecha,
+`stage_changed_at` (para las alertas por dias), `approved_contacted_at` +
+`approved_contact_method`, `procedure_start_date`,
+`dealership_announced_at` + `dealership_visited_at`.
+
+**pipeline_stages** — nombre, orden, color, `is_won`, `is_lost`,
+`next_action` (llamar / whatsapp). Indice unico sobre `name`.
+
+**visits** — contacto, visitador, barrio, fecha y hora.
+
+**management_logs** — historico de gestiones a aprobados: medio, resultado,
+fecha prometida, motivo y observacion.
+
+**activities** — llamadas, notas y seguimientos.
 
 ### API Routes
 
 | Endpoint | Metodos | Descripcion |
-|----------|---------|-------------|
-| `/api/contacts` | GET, POST | Listar (con busqueda/filtro) y crear contactos |
-| `/api/contacts/[id]` | GET, PUT, DELETE | CRUD individual de contacto |
-| `/api/deals` | GET, POST | Listar y crear deals |
-| `/api/deals/[id]` | GET, PUT, DELETE | CRUD individual de deal |
-| `/api/activities` | GET, POST | Listar y registrar actividades |
-| `/api/activities/[id]` | PUT, DELETE | Completar o eliminar actividad |
-| `/api/pipeline` | GET, PUT | Pipeline completo; mover deals entre etapas |
-| `/api/classify` | POST | Clasificar lead (IA o reglas) |
-| `/api/followups` | GET | Follow-ups pendientes (vencidos, hoy, proximos) |
-| `/api/import` | POST | Importacion masiva de contactos |
-| `/api/webhook` | POST | Recibir leads de formularios externos (Typeform, Tally, etc.) |
-| `/api/export` | GET | Exportar contactos o deals como CSV (?type=contacts o deals) |
-| `/api/digest` | POST | Enviar resumen diario por email (requiere RESEND_API_KEY) |
+|---|---|---|
+| `/api/contacts` | GET, POST | Listar y crear. Al crear asigna la primera etapa. |
+| `/api/contacts/[id]` | GET, PUT, DELETE | CRUD. El DELETE borra primero actividades, gestiones, visitas y deals. |
+| `/api/pipeline` | GET, PUT | Tablero; mover contacto de etapa. |
+| `/api/visits` · `/api/visits/[id]` | GET, POST, PUT, DELETE | Agendar y reprogramar visitas. |
+| `/api/managements` | GET, POST | Historico de gestiones. `?contactId=` filtra. |
+| `/api/export` | GET | `?type=contacts` (solo campos del formulario), `visit-states`, `visit-results`. |
+| `/api/import-visit-states` | POST | Importa estados desde CSV, identifica por cedula. |
+| `/api/auth/login` · `/logout` | POST | Acceso con clave compartida. |
+| `/api/activities`, `/api/followups`, `/api/import`, `/api/webhook`, `/api/digest` | varios | Heredados de la plantilla. |
 
-## Configuracion del negocio
+### Acceso
 
-El archivo `crm-config.json` (raiz del proyecto) tiene la configuracion personalizada.
-Se genera con `/setup` y se modifica con `/customize`.
+Clave compartida en `CRM_PASSWORD`. Sesion en cookie firmada con HMAC-SHA256
+(Web Crypto, funciona en middleware Edge y en servidor). `src/middleware.ts`
+protege todo menos `/login` y `/api/auth/*`.
 
-El archivo en `public/crm-config.json` es la copia por defecto (template).
+- En **produccion la clave es obligatoria**: si falta, no entra nadie (falla
+  cerrado, para no exponer datos por un olvido).
+- En **local sin clave no pide login**, para no estorbar el uso diario.
+- Las variables se leen **en tiempo de ejecucion** (`readEnv()` en `auth.ts`).
+  No usar `process.env.X` directo: el empaquetador lo congela al construir la
+  imagen, antes de que el hosting inyecte la variable.
+
+---
+
+## Comandos
+
+```bash
+npm run dev      # desarrollo en http://localhost:3000
+npm run build    # build de produccion
+npm run init     # crea tablas y etapas
+npm run lint     # ESLint
+npx tsc --noEmit # chequeo de tipos
+```
+
+**Antes de cada commit**: `npx tsc --noEmit` y `npm run lint`.
+
+**Si el servidor no arranca** con "Failed to open database / Loading
+persistence directory failed": es la cache de Turbopack. `rm -rf .next`.
+
+---
 
 ## Reglas de codigo
 
-- **Idioma UI**: Espanol por defecto. Soporte bilingue con `const t = { en: {...}, es: {...} }`
-- **Max ~300 lineas por componente**. Dividir si crece mas
-- **No emojis como iconos** — usar Lucide React (SVG)
-- **Valores monetarios**: Centavos (integer). Usar `formatCurrency()` para mostrar
-- **Fechas**: `date-fns` para formateo. SQLite almacena como integer timestamps
-- **Forms**: react-hook-form + zod
-- **Drag & drop**: @dnd-kit (NO react-beautiful-dnd)
-- **Estilos**: Tailwind CSS v4 (config via CSS, no tailwind.config.ts)
+- Textos de UI **en espanol y sin tildes**
+- Iconos con **Lucide React**, nunca emojis
+- Formularios con **react-hook-form + zod**
+- Drag & drop con **@dnd-kit**
+- Fechas: SQLite guarda enteros; se formatean con `Intl.DateTimeFormat("es-CO")`
+- Etiquetas y colores centralizados en `src/lib/constants.ts`
+- Max ~300 lineas por componente
 
-## Modos de IA
+### Al agregar una columna a la base de datos
 
-1. **Terminal Mode** (default, sin API key): Toda la IA via tus comandos de Claude Code.
-   El usuario describe lo que necesita, tu lees/escribes datos via `curl` a los API routes.
+Hay que tocar **cuatro** sitios o el despliegue se rompe:
 
-2. **API Mode** (opcional): Si el usuario pone `ANTHROPIC_API_KEY` en `.env.local`,
-   la web tiene clasificacion automatica de leads inline.
+1. `src/db/schema.ts` (Drizzle)
+2. `src/db/index.ts` (CREATE TABLE del arranque)
+3. `scripts/init.ts` (CREATE TABLE del contenedor)
+4. `ALTER TABLE` sobre la base existente, para no perder datos
 
-3. **MCP Mode**: El usuario puede conectar Claude Desktop/Web al CRM via el servidor MCP.
-   Config: `npm run mcp` o agregar a `claude_desktop_config.json`.
+### Al agregar una tabla que referencia contacts
 
-**Sin API key, el CRM funciona 100%.** La IA es un extra, no un requisito.
+Agregarla tambien al `DELETE` de `/api/contacts/[id]`, o borrar contactos
+fallara por clave foranea. Ya paso dos veces (con `visits` y con
+`management_logs`).
 
-## Despliegue
+---
 
-### Local (desarrollo)
-```bash
-npm run dev
-```
+## Historial de cambios
 
-### Local (produccion)
-```bash
-npm run local  # build + init + start en puerto 3000
-```
+- **Personalizacion inicial** — se reemplazo el email por los campos del
+  negocio (telefono 2, direccion, cedula, acompañante, moto de interes) y se
+  quito la "temperatura" del lead.
+- **Pipeline por contactos** — el contacto avanza por las etapas el mismo, en
+  vez de crear un "deal" con valor en pesos. Las columnas cuentan personas.
+- **Agenda de visitas** — visitador, franjas de 1 hora (8am–5pm), barrio,
+  calendario mensual y bloqueo de horas ocupadas.
+- **Gestion de aprobados** — historico de llamadas con motivos, alertas por
+  dias sin gestionar.
+- **Dashboard** — embudo de conversion, conversion por fuente, clasificaciones,
+  filtro por rango de fechas. Se quito el KPI de valor en pesos.
+- **Marca** — logo de Renta Ya (extraido del PDF corporativo), favicon y titulo.
+- **Acceso con clave** y despliegue en Railway.
 
-### Docker
-```bash
-docker compose up -d  # Corre en puerto 3000, datos persisten en ./data/
-```
+### Errores corregidos (no repetirlos)
 
-### MCP (Claude Desktop/Web)
-Agregar a `~/.claude/claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "auto-crm": {
-      "command": "npx",
-      "args": ["tsx", "/ruta/al/proyecto/mcp/crm-server.ts"]
-    }
-  }
-}
-```
+- **Borrado en cascada de contactos**: el dialogo de confirmacion se cerraba
+  *despues* del `await`, y un re-render volvia a disparar el borrado para otras
+  filas. Se borraron todos los contactos una vez. Ahora se captura el objetivo,
+  se cierra el dialogo antes del `await` y hay un `useRef` que bloquea
+  reentradas.
+- **Etapas duplicadas**: la siembra corria en cada worker de Next.js con una
+  comprobacion no atomica, y sembraba las etapas genericas de la plantilla.
+  Ahora `ensurePipelineStages()` es idempotente, une duplicados reasignando
+  contactos, y un indice unico lo impide.
+- **Clave "no configurada" en Railway**: `process.env.CRM_PASSWORD` se
+  congelaba al construir la imagen. Se lee en tiempo de ejecucion.
+- **Docker sin clave**: `.dockerignore` excluye `.env*` (correcto), pero
+  `docker-compose.yml` no pasaba la variable. Ahora usa `env_file`.
+- **Borrado con dependencias**: faltaba borrar `visits` y `management_logs`.
 
-## Variables de entorno
+---
 
-- `RESEND_API_KEY` — Opcional. Para enviar digest diario por email (resend.com, gratis)
-- `DIGEST_EMAIL` — Opcional. Email donde recibir el digest
-- `DIGEST_FROM` — Opcional. Email remitente del digest (default: onboarding@resend.dev)
+## Recuperar datos borrados
+
+La base esta en modo WAL, asi que `data/crm.db-wal` guarda versiones
+anteriores. Se recupera truncando la WAL a un punto previo:
+
+1. Copiar `crm.db` y `crm.db-wal` a otra carpeta (nunca trabajar sobre los
+   originales)
+2. Leer el tamano de pagina en el byte 8 de la WAL; cada frame mide
+   `24 + pageSize`
+3. Ir recortando la WAL a N frames y abrir la copia hasta encontrar el punto
+   con los datos intactos
+4. Insertar esas filas de vuelta en la base viva
+
+Ya se uso con exito para recuperar 6 contactos, 5 visitas y 9 actividades.
