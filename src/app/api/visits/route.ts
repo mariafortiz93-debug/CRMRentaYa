@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { visits, contacts, pipelineStages } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
+
+/** "lunes, 3 de septiembre, 10:00 a. m." para el detalle del historial. */
+function formatVisitDate(date: Date): string {
+  return new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
 
 export async function GET() {
   const rows = db
@@ -24,6 +34,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requirePermission("agenda_editar", request);
+  if (!auth.ok) return auth.error;
+
   let body;
   try {
     body = await request.json();
@@ -72,6 +85,16 @@ export async function POST(request: NextRequest) {
         .where(eq(contacts.id, contactId))
         .run();
     }
+
+    logAction(auth.user, {
+      action: "agendar",
+      entity: "visita",
+      entityId: visit.id,
+      entityLabel: contact.name,
+      detail: `Visita con ${visit.visitador} el ${formatVisitDate(
+        visit.scheduledAt
+      )}${visit.neighborhood ? ` en ${visit.neighborhood}` : ""}`,
+    });
 
     return NextResponse.json(visit, { status: 201 });
   } catch (error) {

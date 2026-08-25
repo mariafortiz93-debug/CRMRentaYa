@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { contacts, pipelineStages } from "@/db/schema";
 import { eq, like, or, desc, asc } from "drizzle-orm";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
+import { SOURCE_LABELS } from "@/lib/constants";
+import type { LeadSource } from "@/types";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -30,6 +34,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requirePermission("contactos_crear", request);
+  if (!auth.ok) return auth.error;
+
   let body;
   try {
     body = await request.json();
@@ -99,6 +106,16 @@ export async function POST(request: NextRequest) {
       })
       .returning()
       .get();
+
+    const sourceLabel =
+      SOURCE_LABELS[(result.source as LeadSource) || "otro"] || result.source;
+    logAction(auth.user, {
+      action: "crear",
+      entity: "contacto",
+      entityId: result.id,
+      entityLabel: result.name,
+      detail: `Registro el lead (${sourceLabel})`,
+    });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

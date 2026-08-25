@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
 
 export async function POST(request: NextRequest) {
+  const auth = await requirePermission("contactos_crear", request);
+  if (!auth.ok) return auth.error;
+
   let body;
   try {
     body = await request.json();
@@ -61,6 +66,16 @@ export async function POST(request: NextRequest) {
         `Error importando ${contact.name}: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
+  }
+
+  if (results.imported > 0 || results.failed > 0) {
+    logAction(auth.user, {
+      action: "importar",
+      entity: "contacto",
+      detail: `Importo ${results.imported} contacto(s)${
+        results.failed > 0 ? `, ${results.failed} con error` : ""
+      }`,
+    });
   }
 
   return NextResponse.json(results, {

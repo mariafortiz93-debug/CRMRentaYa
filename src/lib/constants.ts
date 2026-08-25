@@ -258,3 +258,44 @@ export function formatRelativeDate(date: Date | number): string {
   if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} semanas`;
   return formatDate(date);
 }
+
+/**
+ * Etiquetas y colores del historial de movimientos (pantalla de Registros).
+ *
+ * `chart` es el color con el que la accion aparece en la grafica de desempeno;
+ * `color` y `bgColor` son los de la etiqueta en la tabla.
+ */
+export const AUDIT_ACTION_CONFIG: Record<
+  string,
+  { label: string; color: string; bgColor: string; chart: string }
+> = {
+  crear: { label: "Creo", color: "#15803d", bgColor: "#dcfce7", chart: "#16a34a" },
+  editar: { label: "Edito", color: "#1d4ed8", bgColor: "#dbeafe", chart: "#3b82f6" },
+  mover: { label: "Movio", color: "#7c3aed", bgColor: "#ede9fe", chart: "#8b5cf6" },
+  agendar: { label: "Agendo", color: "#0e7490", bgColor: "#cffafe", chart: "#06b6d4" },
+  gestionar: { label: "Gestiono", color: "#a16207", bgColor: "#fef9c3", chart: "#f59e0b" },
+  importar: { label: "Importo", color: "#c2410c", bgColor: "#ffedd5", chart: "#f97316" },
+  eliminar: { label: "Elimino", color: "#b91c1c", bgColor: "#fee2e2", chart: "#dc2626" },
+  ingreso: { label: "Entro", color: "#475569", bgColor: "#f1f5f9", chart: "#94a3b8" },
+  salida: { label: "Salio", color: "#475569", bgColor: "#f1f5f9", chart: "#cbd5e1" },
+};
+
+/** Orden en que se apilan las acciones en la grafica de desempeno. */
+export const AUDIT_CHART_ACTIONS = [
+  "crear",
+  "editar",
+  "mover",
+  "agendar",
+  "gestionar",
+  "importar",
+  "eliminar",
+];
+
+export const AUDIT_ENTITY_LABELS: Record<string, string> = {
+  contacto: "Cliente",
+  visita: "Visita",
+  gestion: "Gestion",
+  actividad: "Actividad",
+  usuario: "Usuario",
+  sesion: "Sesion",
+};

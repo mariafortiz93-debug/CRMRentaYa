@@ -40,11 +40,14 @@ Cartagena (Colombia).
 1. **Volumen persistente en Railway** — SIN CONFIRMAR. Settings → Volumes con
    *Mount path* = `/app/data`. **Sin esto, cada despliegue borra todos los
    datos de clientes.** Es lo mas critico del proyecto.
-2. **Cambiar `CRM_PASSWORD`** — hoy es `RentaYa2026`, una clave provisional que
-   quedo escrita en conversaciones.
-3. **Repositorio publico** — el codigo es visible para cualquiera. Los datos de
+2. **Cambiar la clave del super administrador** — al desplegar se crea solo el
+   usuario `maria` con la clave `RentaYa2026*`, que quedo escrita en
+   conversaciones. Hay que cambiarla desde *Mis datos* al primer ingreso; el
+   CRM muestra un aviso amarillo hasta que se haga.
+3. **Crear los usuarios del equipo** — Oscar, Kelly, Richard y Katia, desde la
+   seccion *Usuarios*, cada uno con sus permisos.
+4. **Repositorio publico** — el codigo es visible para cualquiera. Los datos de
    clientes NO estan en el repo, pero conviene pasarlo a privado.
-4. **Compartir con el equipo** — pendiente repartir enlace y clave a los 5.
 
 ---
 
@@ -100,6 +103,90 @@ Alerta roja a los **3 dias** sin gestionar.
 
 ---
 
+## Usuarios y permisos
+
+Cada persona entra con **su propio usuario y su propia clave**. Ya no hay clave
+compartida.
+
+### Roles
+
+El rol es solo una **plantilla** que rellena la lista de permisos al crear el
+usuario. Despues cada permiso se activa o se desactiva uno por uno, asi que dos
+personas con el mismo rol pueden tener accesos distintos.
+
+| Rol | Con que permisos nace |
+|---|---|
+| **Super administrador** | Todo. Es el unico que administra usuarios, y siempre tiene todos los permisos aunque la lista diga otra cosa. |
+| **Coordinador** | Todo menos gestionar usuarios. |
+| **Asesor comercial** | Dashboard, pipeline, contactos, agenda y actividades. No borra clientes ni ve Registros. |
+| **Visitador** | Solo consulta: pipeline, contactos y agenda. |
+
+### Permisos
+
+Definidos en `src/lib/permissions.ts`, agrupados como se ven en pantalla:
+
+- **Secciones** — `dashboard`, `pipeline`, `contactos`, `agenda`,
+  `actividades`, `registros`, `configuracion`
+- **Acciones** — `pipeline_mover`, `contactos_crear`, `contactos_editar`,
+  `contactos_eliminar`, `agenda_editar`
+- **Administracion** — `usuarios`
+
+**Donde se aplican de verdad**: en las rutas de API, con
+`requirePermission(...)` de `src/lib/session.ts`, que **relee el usuario de la
+base en cada peticion**. Por eso, si se le quita un permiso a alguien, el
+cambio aplica de inmediato sin esperar a que vuelva a entrar.
+
+Ocultar entradas del menu (`src/lib/nav.ts`) y esconder botones es solo
+comodidad visual: **nunca es la barrera**. El middleware tampoco decide
+permisos, porque corre en Edge y no puede consultar la base; solo comprueba que
+la cookie de sesion sea valida.
+
+### El super administrador
+
+Se siembra solo al arrancar (`src/db/users.ts`), la primera vez que no existe
+ninguno. Usuario `maria`, clave `RentaYa2026*`, o lo que digan las variables
+`CRM_ADMIN_USER`, `CRM_ADMIN_PASSWORD` y `CRM_ADMIN_NAME`.
+
+**Es idempotente y no pisa claves**: si ya hay un super administrador, no toca
+nada. Asi, cambiar la clave desde el CRM no se deshace en el siguiente
+despliegue.
+
+No se puede quitar el rol, desactivar ni borrar al ultimo super administrador
+activo: si no, nadie podria volver a administrar usuarios.
+
+---
+
+## Registros (quien hizo cada cosa)
+
+Cada movimiento deja una fila en `audit_logs` con el nombre de quien lo hizo.
+Se registra desde las rutas de API con `logAction()` (`src/lib/audit.ts`).
+
+La pantalla `/registros` muestra:
+
+- Arriba, una **grafica de desempeno**: una barra por colaborador, partida en
+  colores segun el tipo de movimiento.
+- Debajo, la **lista completa**: fecha, colaborador, accion, sobre que registro
+  y un detalle en espanol.
+- Filtros por periodo, colaborador y tipo de movimiento.
+
+Acciones: `crear`, `editar`, `eliminar`, `mover`, `agendar`, `gestionar`,
+`importar`, `ingreso`, `salida`.
+
+**Entrar y salir del CRM aparecen en la lista pero no cuentan en la grafica**:
+si contaran, quien mas veces abre la aplicacion pareceria el mas productivo.
+
+Dos decisiones a proposito:
+
+- **`audit_logs` no tiene claves foraneas** hacia `contacts` ni hacia `users`.
+  El historial debe sobrevivir al borrado de un cliente o de un colaborador,
+  por eso guarda copiados el nombre del usuario y una etiqueta del registro.
+  Como efecto util, tampoco hay que agregarla al `DELETE` en cascada.
+- **Registrar nunca puede tumbar la operacion real.** Si falla el guardado del
+  historial se ignora el error: es preferible perder una linea de historial a
+  perder el dato del cliente.
+
+---
+
 ## Arquitectura
 
 **Stack**: Next.js 16 (App Router) · React 19 · TypeScript strict ·
@@ -113,11 +200,32 @@ Tailwind CSS v4 · shadcn/ui · SQLite + Drizzle ORM · @dnd-kit
 - `src/components/pipeline/` — tablero, tarjetas y dialogos del pipeline
 - `src/components/contacts/` — tabla, ficha y formulario de contactos
 - `src/components/dashboard/` — KPIs, embudo, graficas
-- `src/db/` — `schema.ts`, `index.ts` (cliente), `stages.ts` (etapas)
-- `src/lib/` — `constants.ts` (etiquetas), `auth.ts`, `dateRange.ts`
-- `scripts/init.ts` — crea tablas y etapas. Corre al arrancar el contenedor.
+- `src/components/users/` — dialogo de crear/editar colaborador
+- `src/components/audit/` — grafica de desempeno, filtros y tabla de registros
+- `src/db/` — `schema.ts`, `index.ts` (cliente), `stages.ts` (etapas),
+  `users.ts` (siembra del super administrador)
+- `src/lib/` — `constants.ts` (etiquetas), `dateRange.ts` y toda la capa de
+  acceso:
+  - `auth.ts` — firma y lectura de la cookie. **Solo Web Crypto**, porque
+    tambien lo usa el middleware en Edge.
+  - `password.ts` — scrypt. **Solo Node**, no importarlo desde el middleware.
+  - `session.ts` — lee el usuario de la base y aplica los permisos en la API.
+  - `session-context.tsx` — el mismo usuario, visto desde el navegador.
+  - `permissions.ts` — roles, permisos y plantillas.
+  - `nav.ts` — menu y que permiso pide cada ruta.
+  - `audit.ts` / `audit-query.ts` — escribir y leer el historial.
+- `scripts/init.ts` — crea tablas, etapas y el super administrador. Corre al
+  arrancar el contenedor.
 
 ### Modelo de datos
+
+**users** — colaboradores: `username` (unico, minusculas), `name`,
+`password_hash`, `role`, `permissions` (JSON con la lista), `active`,
+`must_change_password`, `last_login_at`.
+
+**audit_logs** — historial de movimientos: `user_id`, `user_name` (copiado),
+`action`, `entity`, `entity_id`, `entity_label` (copiado), `detail`,
+`created_at`. **Sin claves foraneas, a proposito** (ver arriba).
 
 **contacts** — el centro de todo. El contacto avanza por el pipeline el mismo
 (`stage_id`); los "deals" quedaron sin uso real.
@@ -151,18 +259,36 @@ fecha prometida, motivo y observacion.
 | `/api/managements` | GET, POST | Historico de gestiones. `?contactId=` filtra. |
 | `/api/export` | GET | `?type=contacts` (solo campos del formulario), `visit-states`, `visit-results`. |
 | `/api/import-visit-states` | POST | Importa estados desde CSV, identifica por cedula. |
-| `/api/auth/login` · `/logout` | POST | Acceso con clave compartida. |
+| `/api/auth/login` · `/logout` | POST | Entrar y salir, con usuario y clave. |
+| `/api/auth/me` | GET | Quien esta conectado y con que permisos, ahora mismo. |
+| `/api/users` · `/api/users/[id]` | GET, POST, PUT, DELETE | Colaboradores. Solo el super administrador. |
+| `/api/profile` | PUT | Datos propios. Para cambiar la clave hay que escribir la actual. |
+| `/api/audit` | GET | Historial + desempeno. Filtros `from`, `to`, `userId`, `action`, `limit`. |
 | `/api/activities`, `/api/followups`, `/api/import`, `/api/webhook`, `/api/digest` | varios | Heredados de la plantilla. |
+
+Los `deals` siguen sin guardia de permisos porque estan sin uso real; igual
+quedan detras del login.
 
 ### Acceso
 
-Clave compartida en `CRM_PASSWORD`. Sesion en cookie firmada con HMAC-SHA256
-(Web Crypto, funciona en middleware Edge y en servidor). `src/middleware.ts`
-protege todo menos `/login` y `/api/auth/*`.
+Usuario y clave por persona (tabla `users`). Las claves se guardan con
+**scrypt** y una sal distinta por usuario: aunque alguien se lleve `crm.db`, no
+puede leerlas.
 
-- En **produccion la clave es obligatoria**: si falta, no entra nadie (falla
-  cerrado, para no exponer datos por un olvido).
-- En **local sin clave no pide login**, para no estorbar el uso diario.
+La sesion es una cookie **`crm_sesion_v2`** firmada con HMAC-SHA256 (Web
+Crypto, para que funcione en el middleware Edge y en el servidor) que solo
+guarda el id del usuario y el vencimiento. Dura 30 dias.
+
+- `src/middleware.ts` protege todo menos `/login` y `/api/auth/*`, y **solo**
+  comprueba que la sesion sea valida. No decide permisos: corre en Edge y no
+  puede consultar la base.
+- **Los permisos no viajan en la cookie.** Se leen de la base en cada peticion,
+  para que un cambio aplique de inmediato.
+- El nombre de la cookie cambio a proposito al pasar de la clave compartida:
+  invalida las sesiones viejas y obliga a entrar con usuario.
+- `CRM_PASSWORD` ya no da acceso. Si sigue definida se usa como semilla del
+  secreto de firma, igual que antes; lo ideal es definir
+  `CRM_SESSION_SECRET`.
 - Las variables se leen **en tiempo de ejecucion** (`readEnv()` en `auth.ts`).
   No usar `process.env.X` directo: el empaquetador lo congela al construir la
   imagen, antes de que el hosting inyecte la variable.
@@ -228,6 +354,10 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
   filtro por rango de fechas. Se quito el KPI de valor en pesos.
 - **Marca** — logo de Renta Ya (extraido del PDF corporativo), favicon y titulo.
 - **Acceso con clave** y despliegue en Railway.
+- **Usuarios, permisos y registros** — se reemplazo la clave compartida por
+  usuario y clave por persona, con roles y permisos que el super administrador
+  activa uno por uno. Cada movimiento queda etiquetado con quien lo hizo, y la
+  pantalla *Registros* muestra la lista y una grafica de desempeno del equipo.
 
 ### Errores corregidos (no repetirlos)
 
@@ -245,6 +375,12 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
 - **Docker sin clave**: `.dockerignore` excluye `.env*` (correcto), pero
   `docker-compose.yml` no pasaba la variable. Ahora usa `env_file`.
 - **Borrado con dependencias**: faltaba borrar `visits` y `management_logs`.
+- **Menu vacio al entrar**: el contexto de sesion del navegador se carga una
+  sola vez y no se enteraba de la cookie nueva, asi que tras iniciar sesion no
+  aparecia ninguna seccion. El login llama a `refresh()` antes de navegar.
+- **Desplegables con el valor crudo**: los `Select` de Base UI pintan el valor,
+  no la etiqueta. Se veia "asesor" o "__todos__". Hay que pasarle una funcion a
+  `SelectValue` que traduzca el valor.
 
 ---
 

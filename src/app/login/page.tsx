@@ -8,10 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { LogIn } from "lucide-react";
+import { useSession } from "@/lib/session-context";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { refresh } = useSession();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,13 +27,17 @@ function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "No se pudo ingresar");
         return;
       }
+      // Hay que releer la sesion antes de navegar: el menu y los permisos
+      // salen del contexto, que se carga una sola vez y no se entera del
+      // cambio de cookie por si solo. Sin esto se entra con el menu vacio.
+      await refresh();
       router.replace(searchParams.get("destino") || "/");
       router.refresh();
     } catch {
@@ -45,22 +52,35 @@ function LoginForm() {
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="password">Clave de acceso</Label>
+            <Label htmlFor="username">Usuario</Label>
+            <Input
+              id="username"
+              autoFocus
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Tu usuario"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Clave</Label>
             <Input
               id="password"
               type="password"
-              autoFocus
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Escribe la clave del equipo"
+              placeholder="Tu clave"
             />
             {error && <p className="text-xs text-destructive">{error}</p>}
           </div>
 
           <Button
             type="submit"
-            disabled={loading || !password}
+            disabled={loading || !username || !password}
             className="w-full cursor-pointer"
           >
             <LogIn className="h-4 w-4 mr-2" />

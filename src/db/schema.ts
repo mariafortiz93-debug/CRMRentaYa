@@ -1,4 +1,86 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  uniqueIndex,
+  index,
+} from "drizzle-orm/sqlite-core";
+
+/**
+ * Colaboradores que entran al CRM. Cada uno con su usuario y su clave.
+ *
+ * `role` es solo la plantilla con la que se creo; lo que manda de verdad es
+ * `permissions`, un JSON con la lista de permisos activos (ver
+ * `src/lib/permissions.ts`). El super administrador ignora la lista: puede
+ * todo, y es el unico que administra usuarios.
+ */
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    /** Con el que inicia sesion. Siempre en minusculas y sin espacios. */
+    username: text("username").notNull(),
+    /** Nombre para mostrar en las etiquetas de cada movimiento. */
+    name: text("name").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    role: text("role").notNull().default("asesor"),
+    /** JSON con la lista de permisos activos. */
+    permissions: text("permissions").notNull().default("[]"),
+    /** Un usuario desactivado no puede entrar, pero su historial se conserva. */
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    /** Avisa que todavia usa la clave que le asignaron. */
+    mustChangePassword: integer("must_change_password", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [uniqueIndex("idx_users_username").on(table.username)]
+);
+
+/**
+ * Registro de cada movimiento que se hace en el CRM: quien lo hizo, que hizo y
+ * sobre que cliente.
+ *
+ * A proposito no tiene claves foraneas hacia `users` ni hacia `contacts`: el
+ * historial debe sobrevivir al borrado de un contacto o de un colaborador. Por
+ * eso guarda tambien el nombre del usuario y una etiqueta del registro
+ * afectado, copiados en el momento de la accion.
+ */
+export const auditLogs = sqliteTable(
+  "audit_logs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id"),
+    /** Nombre del colaborador tal como estaba al hacer la accion. */
+    userName: text("user_name").notNull(),
+    /** crear | editar | eliminar | mover | agendar | gestionar | importar | ingreso | salida */
+    action: text("action").notNull(),
+    /** contacto | visita | gestion | actividad | usuario | sesion */
+    entity: text("entity").notNull(),
+    entityId: text("entity_id"),
+    /** Nombre del cliente o del registro afectado, para leerlo sin consultas. */
+    entityLabel: text("entity_label"),
+    /** Frase en espanol con lo que paso. */
+    detail: text("detail"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_audit_logs_created_at").on(table.createdAt),
+    index("idx_audit_logs_user_id").on(table.userId),
+  ]
+);
 
 export const pipelineStages = sqliteTable("pipeline_stages", {
   id: text("id")

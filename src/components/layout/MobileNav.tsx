@@ -3,29 +3,19 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  Kanban,
-  Activity,
-  Settings,
-  Briefcase,
-  CalendarDays,
-} from "lucide-react";
+import { UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/pipeline", label: "Pipeline", icon: Kanban },
-  { href: "/contacts", label: "Contactos", icon: Users },
-  { href: "/agenda", label: "Agenda", icon: CalendarDays },
-  { href: "/deals", label: "Deals", icon: Briefcase },
-  { href: "/activities", label: "Actividades", icon: Activity },
-  { href: "/settings", label: "Configuracion", icon: Settings },
-];
+import { NAV_ITEMS } from "@/lib/nav";
+import { ROLE_LABELS } from "@/lib/permissions";
+import { useSession } from "@/lib/session-context";
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { user, can, isSuperAdmin } = useSession();
+
+  const items = NAV_ITEMS.filter(
+    (item) => can(item.permission) && (!item.superAdminOnly || isSuperAdmin)
+  );
 
   return (
     <div className="flex flex-col h-full bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">
@@ -40,7 +30,7 @@ export function MobileNav() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/" && pathname.startsWith(item.href));
@@ -61,6 +51,25 @@ export function MobileNav() {
           );
         })}
       </nav>
+
+      {user && (
+        <div className="px-3 py-4 border-t border-[var(--sidebar-border)]">
+          <Link
+            href="/perfil"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--sidebar-foreground)]/70 transition-colors cursor-pointer hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+          >
+            <UserRound className="h-5 w-5 shrink-0" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">
+                {user.name}
+              </span>
+              <span className="block truncate text-xs opacity-70">
+                {ROLE_LABELS[user.role]}
+              </span>
+            </span>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

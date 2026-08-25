@@ -2,11 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { visits, contacts, pipelineStages } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
+
+/** "3 sept 2026, 10:00 a. m." para el detalle del historial. */
+function formatVisitDate(date: Date): string {
+  return new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requirePermission("agenda_editar", request);
+  if (!auth.ok) return auth.error;
+
   const { id } = await params;
 
   let body;
@@ -46,14 +59,67 @@ export async function PUT(
       .run();
   }
 
+  const contact = db
+    .select({ name: contacts.name })
+    .from(contacts)
+    .where(eq(contacts.id, existing.contactId))
+    .get();
+
+  const cambios: string[] = [];
+  if (result.visitador !== existing.visitador) {
+    cambios.push(`visitador: ${result.visitador}`);
+  }
+  if (result.scheduledAt.getTime() !== existing.scheduledAt.getTime()) {
+    cambios.push(`fecha: ${formatVisitDate(result.scheduledAt)}`);
+  }
+  if (result.neighborhood !== existing.neighborhood) {
+    cambios.push(`barrio: ${result.neighborhood || "(vacio)"}`);
+  }
+
+  if (cambios.length > 0) {
+    logAction(auth.user, {
+      action: "agendar",
+      entity: "visita",
+      entityId: result.id,
+      entityLabel: contact?.name || null,
+      detail: `Reprogramo la visita · ${cambios.join(" · ")}`,
+    });
+  }
+
   return NextResponse.json(result);
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requirePermission("agenda_editar", request);
+  if (!auth.ok) return auth.error;
+
   const { id } = await params;
+
+  const existing = db.select().from(visits).where(eq(visits.id, id)).get();
+  if (!existing) {
+    return NextResponse.json({ error: "Visita no encontrada" }, { status: 404 });
+  }
+
+  const contact = db
+    .select({ name: contacts.name })
+    .from(contacts)
+    .where(eq(contacts.id, existing.contactId))
+    .get();
+
   db.delete(visits).where(eq(visits.id, id)).run();
+
+  logAction(auth.user, {
+    action: "eliminar",
+    entity: "visita",
+    entityId: id,
+    entityLabel: contact?.name || null,
+    detail: `Cancelo la visita del ${formatVisitDate(existing.scheduledAt)} con ${
+      existing.visitador
+    }`,
+  });
+
   return NextResponse.json({ success: true });
 }

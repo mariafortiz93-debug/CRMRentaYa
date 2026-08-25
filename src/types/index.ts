@@ -1,3 +1,48 @@
+import type { Permission, Role } from "@/lib/permissions";
+
+/** Colaborador del CRM, tal como lo devuelve la API (sin la clave). */
+export interface User {
+  id: string;
+  username: string;
+  name: string;
+  role: Role;
+  permissions: Permission[];
+  active: boolean;
+  mustChangePassword: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Una linea del historial de movimientos. */
+export interface AuditLog {
+  id: string;
+  userId: string | null;
+  userName: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  entityLabel: string | null;
+  detail: string | null;
+  createdAt: string;
+}
+
+/** Resumen de cuanto hizo cada colaborador en el periodo consultado. */
+export interface PerformanceRow {
+  userId: string | null;
+  userName: string;
+  total: number;
+  porAccion: Record<string, number>;
+}
+
+export interface AuditResponse {
+  logs: AuditLog[];
+  total: number;
+  limite: number;
+  desempeno: PerformanceRow[];
+  colaboradores: Array<{ id: string; name: string }>;
+}
+
 export type ActivityType = "call" | "email" | "meeting" | "note" | "follow_up";
 
 export type LeadSource =

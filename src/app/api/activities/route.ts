@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
+import { ACTIVITY_TYPE_CONFIG } from "@/lib/constants";
+import type { ActivityType } from "@/types";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -36,6 +40,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requirePermission("actividades", request);
+  if (!auth.ok) return auth.error;
+
   let body;
   try {
     body = await request.json();
@@ -65,6 +72,22 @@ export async function POST(request: NextRequest) {
       })
       .returning()
       .get();
+
+    const contact = db
+      .select({ name: contacts.name })
+      .from(contacts)
+      .where(eq(contacts.id, contactId))
+      .get();
+
+    logAction(auth.user, {
+      action: "crear",
+      entity: "actividad",
+      entityId: result.id,
+      entityLabel: contact?.name || null,
+      detail: `${
+        ACTIVITY_TYPE_CONFIG[type as ActivityType]?.label || type
+      }: ${description}`,
+    });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { contacts, pipelineStages } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { VisitResult } from "@/types";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
 
 /** Normaliza texto: sin acentos, minusculas, sin espacios sobrantes. */
 function normalize(value: string): string {
@@ -76,6 +78,9 @@ function findColumn(header: string[], candidates: string[]): number {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requirePermission("contactos_editar", request);
+  if (!auth.ok) return auth.error;
+
   let body;
   try {
     body = await request.json();
@@ -182,6 +187,14 @@ export async function POST(request: NextRequest) {
       .run();
 
     result.actualizados++;
+  }
+
+  if (result.actualizados > 0) {
+    logAction(auth.user, {
+      action: "importar",
+      entity: "contacto",
+      detail: `Importo estados de visita: ${result.actualizados} cliente(s) actualizado(s)`,
+    });
   }
 
   return NextResponse.json(result);

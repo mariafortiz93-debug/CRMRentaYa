@@ -1,12 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { activities } from "@/db/schema";
+import { activities, contacts } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
+
+/** Nombre del cliente al que pertenece la actividad, para el historial. */
+function contactName(contactId: string): string | null {
+  const row = db
+    .select({ name: contacts.name })
+    .from(contacts)
+    .where(eq(contacts.id, contactId))
+    .get();
+  return row?.name || null;
+}
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requirePermission("actividades", request);
+  if (!auth.ok) return auth.error;
+
   const { id } = await params;
 
   let body;
@@ -86,6 +101,18 @@ export async function PUT(
       .returning()
       .get();
 
+    const completada =
+      updateData.completedAt !== undefined && !existing.completedAt;
+    logAction(auth.user, {
+      action: "editar",
+      entity: "actividad",
+      entityId: result.id,
+      entityLabel: contactName(result.contactId),
+      detail: completada
+        ? `Marco como hecha: ${result.description}`
+        : `Actualizo la actividad: ${result.description}`,
+    });
+
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(
@@ -96,9 +123,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requirePermission("actividades", request);
+  if (!auth.ok) return auth.error;
+
   const { id } = await params;
 
   try {
@@ -116,6 +146,15 @@ export async function DELETE(
     }
 
     db.delete(activities).where(eq(activities.id, id)).run();
+
+    logAction(auth.user, {
+      action: "eliminar",
+      entity: "actividad",
+      entityId: id,
+      entityLabel: contactName(existing.contactId),
+      detail: `Elimino la actividad: ${existing.description}`,
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(

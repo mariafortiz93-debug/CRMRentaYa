@@ -14,6 +14,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { ensurePipelineStages } from "../src/db/stages";
+import { ensureSuperAdmin } from "../src/db/users";
 
 const DB_PATH = path.join(process.cwd(), "data", "crm.db");
 const shouldSeed = process.argv.includes("--seed");
@@ -33,6 +34,37 @@ sqlite.pragma("foreign_keys = ON");
 
 // Create tables
 sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'asesor',
+    permissions TEXT NOT NULL DEFAULT '[]',
+    active INTEGER NOT NULL DEFAULT 1,
+    must_change_password INTEGER NOT NULL DEFAULT 0,
+    last_login_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);
+
+  CREATE TABLE IF NOT EXISTS audit_logs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    user_name TEXT NOT NULL,
+    action TEXT NOT NULL,
+    entity TEXT NOT NULL,
+    entity_id TEXT,
+    entity_label TEXT,
+    detail TEXT,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+
   CREATE TABLE IF NOT EXISTS pipeline_stages (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -146,6 +178,15 @@ const stages = sqlite
   .all() as Array<{ name: string }>;
 console.log(`Pipeline stages ready (${stages.length}):`);
 console.log("  " + stages.map((s) => s.name).join(" -> "));
+
+// Super administrador. Solo se crea si no existe ninguno.
+ensureSuperAdmin(sqlite);
+const admins = sqlite
+  .prepare("SELECT username FROM users WHERE role = 'super_admin'")
+  .all() as Array<{ username: string }>;
+console.log(
+  `Super administrador: ${admins.map((a) => a.username).join(", ") || "ninguno"}`
+);
 
 sqlite.close();
 

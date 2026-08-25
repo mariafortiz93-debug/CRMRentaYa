@@ -1,8 +1,12 @@
 # Publicar el CRM para todo el equipo
 
 Objetivo: que Oscar, Kelly, Richard, Katia y la directora comercial entren
-desde su computador o celular con un enlace, y que **todos vean la misma
-informacion en tiempo real**.
+desde su computador o celular con un enlace, **cada uno con su propio usuario y
+su propia clave**, y que todos vean la misma informacion en tiempo real.
+
+> **Ya esta publicado en <https://crmrentaya-production-b3bf.up.railway.app>.**
+> Lo de abajo es la explicacion de como quedo montado y que falta por
+> confirmar.
 
 ---
 
@@ -36,7 +40,7 @@ es opcional.
 
 2. **Crear el proyecto**
    - `New Project` -> `Deploy from GitHub repo`
-   - Autoriza a Railway a ver tus repos y elige **`auto-crm-motos`**
+   - Autoriza a Railway a ver tus repos y elige **`CRMRentaYa`**
    - Railway detecta el `Dockerfile` y empieza a construir solo.
 
 3. **Agregar el disco persistente** (imprescindible)
@@ -44,20 +48,26 @@ es opcional.
    - **Mount path:** `/app/data`
    - Guarda. El servicio se reinicia con el disco montado.
 
-4. **Poner la clave de acceso**
+4. **Poner el secreto de las sesiones**
    - `Variables` -> `New Variable`
-   - Nombre: `CRM_PASSWORD`
-   - Valor: la clave que usara el equipo (elige una y no la compartas por
-     canales publicos)
-   - Agrega tambien `CRM_SESSION_SECRET` con cualquier texto largo y aleatorio.
+   - Nombre: `CRM_SESSION_SECRET`, valor: cualquier texto largo y aleatorio.
+     Con el se firman las cookies; si lo cambias, todo el mundo tiene que
+     volver a entrar.
+   - Opcional: `CRM_ADMIN_USER` y `CRM_ADMIN_PASSWORD` para elegir tu el
+     usuario y la clave del primer administrador. Si no los pones, se crea
+     `maria` con la clave `RentaYa2026*`.
 
 5. **Generar el enlace**
    - `Settings` -> `Networking` -> `Generate Domain`
-   - Te da una direccion tipo `https://auto-crm-motos-production.up.railway.app`
 
-6. **Repartir el acceso**
-   Envia a cada persona el enlace y la clave. Entran, escriben la clave y
-   quedan dentro por 30 dias.
+6. **Entrar y armar el equipo**
+   - Entra con el usuario administrador y **cambia la clave de inmediato**
+     desde *Mis datos*. El CRM muestra un aviso amarillo hasta que lo hagas.
+   - Ve a *Usuarios* -> `Nuevo colaborador` y crea uno para cada persona.
+   - Marca solo las secciones que necesita: un visitador no tiene por que ver
+     el dashboard ni borrar clientes.
+   - Envia a cada uno su usuario y su clave inicial. La primera vez que entre
+     el CRM le pedira cambiarla.
 
 ---
 
@@ -82,7 +92,7 @@ Si los cinco trabajan en la misma oficina y en el mismo WiFi:
 3. Los demas entran a `http://192.168.1.57:3000`.
 
 Limitaciones: solo funciona dentro de esa red, ese computador debe permanecer
-encendido, y no hay HTTPS. Aun asi conviene definir `CRM_PASSWORD`.
+encendido, y no hay HTTPS. El ingreso con usuario y clave funciona igual.
 
 ---
 

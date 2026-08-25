@@ -5,6 +5,7 @@ import { AppChrome } from "@/components/layout/AppChrome";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { NotificationChecker } from "@/components/shared/NotificationChecker";
+import { SessionProvider } from "@/lib/session-context";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -25,11 +26,13 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex" suppressHydrationWarning>
-        <TooltipProvider>
-          <AppChrome>{children}</AppChrome>
-          <Toaster />
-          <NotificationChecker />
-        </TooltipProvider>
+        <SessionProvider>
+          <TooltipProvider>
+            <AppChrome>{children}</AppChrome>
+            <Toaster />
+            <NotificationChecker />
+          </TooltipProvider>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -1,19 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, authRequired, isValidSession } from "@/lib/auth";
+import { SESSION_COOKIE, readSession } from "@/lib/auth";
+
+/**
+ * Corre en Edge, asi que no puede tocar la base de datos: aqui solo se
+ * comprueba que la cookie de sesion tenga una firma valida y no haya vencido.
+ *
+ * Los permisos por seccion NO se deciden aqui. De eso se encargan las rutas de
+ * API, que releen al usuario de la base en cada peticion (`lib/session.ts`).
+ */
 
 /** Rutas que se pueden ver sin haber iniciado sesion. */
 const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"];
 
 export async function middleware(request: NextRequest) {
-  if (!authRequired()) return NextResponse.next();
-
   const { pathname } = request.nextUrl;
+
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return NextResponse.next();
   }
 
-  const ok = await isValidSession(request.cookies.get(SESSION_COOKIE)?.value);
-  if (ok) return NextResponse.next();
+  const userId = await readSession(request.cookies.get(SESSION_COOKIE)?.value);
+  if (userId) return NextResponse.next();
 
   // Las llamadas de datos responden 401 en vez de redirigir.
   if (pathname.startsWith("/api/")) {

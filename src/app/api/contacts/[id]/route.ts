@@ -1,7 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { contacts, deals, activities, visits, managementLogs } from "@/db/schema";
+import {
+  contacts,
+  deals,
+  activities,
+  visits,
+  managementLogs,
+  pipelineStages,
+} from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requirePermission } from "@/lib/session";
+import { describeChanges, logAction } from "@/lib/audit";
+
+/** Nombres legibles de los campos, para describir que se edito. */
+const CONTACT_FIELD_LABELS: Record<string, string> = {
+  name: "Nombre",
+  phone: "Telefono",
+  phone2: "Telefono 2",
+  address: "Direccion",
+  city: "Ciudad",
+  neighborhood: "Barrio",
+  identificationNumber: "Cedula",
+  expeditionCity: "Ciudad de expedicion",
+  companionName: "Acompanante",
+  motorcycleInterest: "Moto de interes",
+  company: "Empresa",
+  source: "Fuente",
+  notes: "Notas",
+  contactMethod: "Medio de contacto",
+  plan: "Plan",
+  classification: "Clasificacion",
+  classificationDetail: "Detalle de clasificacion",
+  visitResult: "Estado de la visita",
+  visitResultNote: "Motivo del estado",
+  procedureStartDate: "Fecha de inicio de tramite",
+  approvedContactMethod: "Gestion del aprobado",
+};
 
 export async function GET(
   _request: NextRequest,
@@ -45,6 +79,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requirePermission("contactos_editar", request);
+  if (!auth.ok) return auth.error;
+
   const { id } = await params;
 
   let body;
@@ -124,13 +161,45 @@ export async function PUT(
     .returning()
     .get();
 
+  // El cambio de etapa se describe aparte, con el nombre de la etapa y no el id.
+  const movedStage =
+    updateData.stageId !== undefined && updateData.stageId !== existing.stageId;
+  if (movedStage) {
+    const stage = db
+      .select({ name: pipelineStages.name })
+      .from(pipelineStages)
+      .where(eq(pipelineStages.id, String(updateData.stageId)))
+      .get();
+    logAction(auth.user, {
+      action: "mover",
+      entity: "contacto",
+      entityId: result.id,
+      entityLabel: result.name,
+      detail: `Lo paso a "${stage?.name || "otra etapa"}"`,
+    });
+  }
+
+  const detail = describeChanges(existing, updateData, CONTACT_FIELD_LABELS);
+  if (detail !== "Sin cambios") {
+    logAction(auth.user, {
+      action: "editar",
+      entity: "contacto",
+      entityId: result.id,
+      entityLabel: result.name,
+      detail,
+    });
+  }
+
   return NextResponse.json(result);
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requirePermission("contactos_eliminar", request);
+  if (!auth.ok) return auth.error;
+
   const { id } = await params;
 
   const existing = db
@@ -152,5 +221,18 @@ export async function DELETE(
   db.delete(visits).where(eq(visits.contactId, id)).run();
   db.delete(deals).where(eq(deals.contactId, id)).run();
   db.delete(contacts).where(eq(contacts.id, id)).run();
+
+  // `audit_logs` no referencia a `contacts`, asi que el historial de este
+  // cliente sigue en Registros aunque el contacto ya no exista.
+  logAction(auth.user, {
+    action: "eliminar",
+    entity: "contacto",
+    entityId: id,
+    entityLabel: existing.name,
+    detail: `Elimino el cliente y todo su historial${
+      existing.phone ? ` (tel. ${existing.phone})` : ""
+    }`,
+  });
+
   return NextResponse.json({ success: true });
 }

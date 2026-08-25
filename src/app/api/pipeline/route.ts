@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { pipelineStages, contacts } from "@/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
 
 export async function GET() {
   const stages = db
@@ -25,6 +27,9 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = await requirePermission("pipeline_mover", request);
+  if (!auth.ok) return auth.error;
+
   let body;
   try {
     body = await request.json();
@@ -66,11 +71,37 @@ export async function PUT(request: NextRequest) {
       .returning()
       .get();
 
+    if (changed) {
+      const origin = db
+        .select({ name: pipelineStages.name })
+        .from(pipelineStages)
+        .where(eq(pipelineStages.id, existing.stageId || ""))
+        .get();
+      logAction(auth.user, {
+        action: "mover",
+        entity: "contacto",
+        entityId: result.id,
+        entityLabel: result.name,
+        detail: `De "${origin?.name || "sin etapa"}" a "${
+          target?.name || "otra etapa"
+        }"`,
+      });
+    }
+
     return NextResponse.json(result);
   }
 
   // Bulk update stages (from /setup or /customize)
   if (body.stages && Array.isArray(body.stages)) {
+    // Rehacer el pipeline entero cambia el flujo comercial de todo el equipo:
+    // solo el super administrador.
+    if (auth.user.role !== "super_admin") {
+      return NextResponse.json(
+        { error: "Solo el super administrador puede cambiar las etapas" },
+        { status: 403 }
+      );
+    }
+
     // Delete existing stages (only if no contacts reference them)
     const existingContacts = db.select().from(contacts).all();
     if (existingContacts.length > 0) {

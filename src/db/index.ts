@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import { ensurePipelineStages } from "./stages";
+import { ensureSuperAdmin } from "./users";
 import path from "path";
 import fs from "fs";
 
@@ -41,6 +42,33 @@ function createDatabase(): Database.Database {
 function initTables(db: Database.Database): void {
   // Each CREATE TABLE is its own statement to minimize lock time
   const tables = [
+    `CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'asesor',
+      permissions TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
+      must_change_password INTEGER NOT NULL DEFAULT 0,
+      last_login_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+    `CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      user_name TEXT NOT NULL,
+      action TEXT NOT NULL,
+      entity TEXT NOT NULL,
+      entity_id TEXT,
+      entity_label TEXT,
+      detail TEXT,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)`,
     `CREATE TABLE IF NOT EXISTS pipeline_stages (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -149,6 +177,13 @@ try {
   ensurePipelineStages(sqlite);
 } catch {
   // Si otro worker la esta ejecutando, no bloqueamos el arranque.
+}
+try {
+  // Crea el super administrador la primera vez. Si ya existe, no toca nada:
+  // nunca pisa una clave que ya se haya cambiado desde el CRM.
+  ensureSuperAdmin(sqlite);
+} catch {
+  // Igual que arriba: no bloqueamos el arranque por una carrera entre workers.
 }
 
 export const db = drizzle(sqlite, { schema });

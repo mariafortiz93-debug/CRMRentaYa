@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { managementLogs, contacts, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { requirePermission } from "@/lib/session";
+import { logAction } from "@/lib/audit";
+import {
+  CONTACT_METHOD_CONFIG,
+  MANAGEMENT_OUTCOME_CONFIG,
+  MANAGEMENT_REASON_CONFIG,
+} from "@/lib/constants";
+import type {
+  ContactMethod,
+  ManagementOutcome,
+  ManagementReason,
+} from "@/types";
 
 /** Historico de gestiones. Con ?contactId= devuelve solo las de ese cliente. */
 export async function GET(request: NextRequest) {
@@ -25,6 +37,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requirePermission("pipeline_mover", request);
+  if (!auth.ok) return auth.error;
+
   let body;
   try {
     body = await request.json();
@@ -88,6 +103,25 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(contacts.id, contactId))
       .run();
+
+    const partes = [
+      CONTACT_METHOD_CONFIG[method as ContactMethod]?.label || method,
+      MANAGEMENT_OUTCOME_CONFIG[outcome as ManagementOutcome]?.label || outcome,
+    ];
+    if (reason) {
+      partes.push(
+        MANAGEMENT_REASON_CONFIG[reason as ManagementReason]?.label || reason
+      );
+    }
+    if (perdidoStage) partes.push("paso a Perdido");
+
+    logAction(auth.user, {
+      action: "gestionar",
+      entity: "gestion",
+      entityId: log.id,
+      entityLabel: contact.name,
+      detail: partes.join(" · "),
+    });
 
     return NextResponse.json(
       { ...log, movedToLost: !!perdidoStage },
