@@ -16,10 +16,24 @@ export const SESSION_COOKIE = "crm_sesion";
 const SESSION_DAYS = 30;
 export const SESSION_MAX_AGE = SESSION_DAYS * 24 * 60 * 60;
 
+/**
+ * Lee la variable en tiempo de ejecucion.
+ *
+ * Se usa acceso por corchetes con una clave en variable a proposito: si se
+ * escribiera `process.env.CRM_PASSWORD` directamente, el empaquetador puede
+ * reemplazarlo por su valor al construir la imagen. Como la imagen se
+ * construye antes de que el hosting inyecte la clave, quedaria congelada en
+ * `undefined` y el CRM diria que no hay clave configurada aunque si exista.
+ */
+function readEnv(name: string): string | undefined {
+  const env = process.env as Record<string, string | undefined>;
+  return env[name];
+}
+
 function secret(): string {
   return (
-    process.env.CRM_SESSION_SECRET ||
-    process.env.CRM_PASSWORD ||
+    readEnv("CRM_SESSION_SECRET") ||
+    readEnv("CRM_PASSWORD") ||
     "clave-de-desarrollo-local"
   );
 }
@@ -56,13 +70,13 @@ function safeEqual(a: string, b: string): boolean {
 
 /** Clave configurada, o null si no hay ninguna. */
 export function configuredPassword(): string | null {
-  const p = process.env.CRM_PASSWORD;
+  const p = readEnv("CRM_PASSWORD");
   return p && p.length > 0 ? p : null;
 }
 
 /** True si hay que pedir clave para entrar. */
 export function authRequired(): boolean {
-  return configuredPassword() !== null || process.env.NODE_ENV === "production";
+  return configuredPassword() !== null || readEnv("NODE_ENV") === "production";
 }
 
 /** Crea el valor de la cookie de sesion. */
