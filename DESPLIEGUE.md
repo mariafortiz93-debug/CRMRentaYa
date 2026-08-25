@@ -29,8 +29,16 @@ Es la mas sencilla. Se conecta a GitHub y despliega solo. Cuesta alrededor de
 ### Requisito clave: disco persistente
 
 El CRM guarda todo en `data/crm.db`. Sin un disco persistente, **cada vez que
-la aplicacion se reinicia se borraria la informacion**. Por eso el paso 3 no
-es opcional.
+se actualiza la aplicacion se borra la informacion**: clientes, usuarios, todo.
+Por eso el paso 3 no es opcional.
+
+Como saber si lo tienes: entra a *Configuracion* despues de un despliegue. Si
+los clientes siguen ahi, el disco esta bien. Tambien queda en los logs de
+Railway: al arrancar, el CRM imprime `Datos: contacts=... users=...` y, si la
+base venia vacia, un aviso en mayusculas.
+
+Si Railway no te deja usar `/app/data`, montalo donde te deje y agrega una
+variable `CRM_DATA_DIR` con esa misma ruta.
 
 ### Paso a paso
 
@@ -106,5 +114,13 @@ hoy estan en tu computador. Se pueden pasar de dos maneras:
 
 ## Respaldos
 
-Toda la informacion vive en un solo archivo: `data/crm.db`. Para respaldar,
-basta con copiarlo. Conviene bajar una copia cada cierto tiempo.
+Toda la informacion vive en un solo archivo: `data/crm.db`.
+
+Desde el CRM: **Configuracion → Respaldos → Descargar respaldo**. Baja ese
+archivo y guardalo fuera del servidor (tu computador, Drive, donde sea).
+Conviene hacerlo una vez por semana, y siempre antes de una actualizacion
+grande.
+
+Para volver atras, en esa misma pantalla esta *Restaurar un respaldo*: subes el
+archivo y el CRM reemplaza todo por lo que traiga. Antes de hacerlo guarda solo
+una copia de lo que habia, por si te equivocas de archivo.

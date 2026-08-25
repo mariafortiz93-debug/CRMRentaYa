@@ -298,4 +298,5 @@ export const AUDIT_ENTITY_LABELS: Record<string, string> = {
   actividad: "Actividad",
   usuario: "Usuario",
   sesion: "Sesion",
+  respaldo: "Respaldo",
 };

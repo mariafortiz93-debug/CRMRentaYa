@@ -37,9 +37,14 @@ Cartagena (Colombia).
 
 ### Pendientes importantes
 
-1. **Volumen persistente en Railway** — SIN CONFIRMAR. Settings → Volumes con
-   *Mount path* = `/app/data`. **Sin esto, cada despliegue borra todos los
-   datos de clientes.** Es lo mas critico del proyecto.
+1. **Volumen persistente en Railway** — **CONFIRMADO QUE FALTA.** Maria reporto
+   que cada actualizacion deja la plataforma en blanco. La causa no esta en el
+   codigo: el arranque solo crea tablas que falten y nunca borra. Lo que pasa
+   es que `/app/data` es el disco temporal del contenedor, que se rehace en
+   cada despliegue.
+   **Arreglo (solo se puede desde el panel):** Settings → Volumes → New Volume,
+   *Mount path* = `/app/data`. Si Railway obliga a otra ruta, montarlo donde
+   sea y definir la variable `CRM_DATA_DIR` con esa misma ruta.
 2. **Cambiar la clave del super administrador** — al desplegar se crea solo el
    usuario `maria` con la clave `RentaYa2026*`, que quedo escrita en
    conversaciones. Hay que cambiarla desde *Mis datos* al primer ingreso; el
@@ -264,6 +269,7 @@ fecha prometida, motivo y observacion.
 | `/api/users` · `/api/users/[id]` | GET, POST, PUT, DELETE | Colaboradores. Solo el super administrador. |
 | `/api/profile` | PUT | Datos propios. Para cambiar la clave hay que escribir la actual. |
 | `/api/audit` | GET | Historial + desempeno. Filtros `from`, `to`, `userId`, `action`, `limit`. |
+| `/api/backup` | GET, POST | Descargar y restaurar la base completa. Solo el super administrador. |
 | `/api/activities`, `/api/followups`, `/api/import`, `/api/webhook`, `/api/digest` | varios | Heredados de la plantilla. |
 
 Los `deals` siguen sin guardia de permisos porque estan sin uso real; igual
@@ -381,6 +387,52 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
 - **Desplegables con el valor crudo**: los `Select` de Base UI pintan el valor,
   no la etiqueta. Se veia "asesor" o "__todos__". Hay que pasarle una funcion a
   `SelectValue` que traduzca el valor.
+- **Cada despliegue dejaba el CRM en blanco**: no era un bug del codigo, era
+  que Railway no tenia disco persistente en `/app/data`. Diagnostico util: si
+  se pierden datos al actualizar, **mirar primero el volumen del hosting**, no
+  la siembra ni las migraciones.
+- **Comprobar un despliegue buscando texto en el HTML**: no sirve. Las
+  pantallas del CRM las dibuja JavaScript, asi que `curl | grep` da falsos
+  negativos. Hay que abrirlo en un navegador de verdad.
+
+---
+
+## Persistencia y respaldos
+
+**Toda la informacion del CRM esta en un solo archivo: `crm.db`.** Clientes,
+visitas, gestiones, usuarios y el historial. No hay nada mas que guardar:
+`crm-config.json` se regenera desde `public/` en cada arranque.
+
+### Donde vive
+
+`src/db/paths.ts` decide la ruta: `./data` por defecto, o lo que diga
+**`CRM_DATA_DIR`**. Esa variable existe porque el disco persistente de un
+hosting se monta donde diga el panel; si no coincide con `/app/data`, el CRM
+escribiria en el disco temporal del contenedor y **cada despliegue empezaria en
+blanco**. Con la variable basta apuntarlo al disco de verdad.
+
+`scripts/init.ts` deja en el log del hosting la ruta, si la base ya existia y
+cuantas filas hay en cada tabla. Si en produccion la base no existia al
+arrancar, imprime un aviso grande. Asi una perdida de datos se ve el mismo dia
+y no semanas despues.
+
+### Respaldos
+
+*Configuracion → Respaldos*, solo para el super administrador:
+
+- **Descargar** — usa `.backup()` de better-sqlite3, no una copia del archivo a
+  mano: en modo WAL lo ultimo que se guardo vive en `crm.db-wal`, asi que
+  copiar solo `crm.db` dejaria fuera los cambios recientes.
+- **Restaurar** — **no reemplaza el archivo en disco**: el servidor lo tiene
+  abierto y cambiarlo por debajo lo corrompe. En vez de eso engancha el
+  respaldo con `ATTACH` y copia las filas tabla por tabla dentro de una
+  transaccion (o entra todo o no entra nada). Solo copia las columnas que
+  existen en ambos lados, para que un respaldo viejo siga sirviendo aunque
+  despues se hayan agregado campos. Antes de tocar nada guarda una copia de lo
+  que hay en `data/crm-antes-de-restaurar-<fecha>.db`.
+
+Las claves foraneas se apagan **fuera** de la transaccion: dentro, el PRAGMA no
+tiene efecto y el borrado fallaria por el orden de las tablas.
 
 ---
 

@@ -1,13 +1,8 @@
 import Database from "better-sqlite3";
-import path from "path";
-import fs from "fs";
+import { dbPath, ensureDataDir } from "./paths";
 
-const DB_PATH = path.join(process.cwd(), "data", "crm.db");
-
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+ensureDataDir();
+const DB_PATH = dbPath();
 
 const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");

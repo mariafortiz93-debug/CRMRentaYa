@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationToggle } from "@/components/shared/NotificationToggle";
+import { BackupCard } from "@/components/settings/BackupCard";
 import type { CrmConfig } from "@/types";
 
 export default function SettingsPage() {
@@ -69,6 +70,9 @@ export default function SettingsPage() {
           Configuracion del CRM y comandos disponibles
         </p>
       </div>
+
+      {/* Respaldos: lo primero, porque es lo que evita perder la informacion. */}
+      <BackupCard />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Business config */}

@@ -45,11 +45,11 @@ next-env.d.ts
 /crm-config.json
 !public/crm-config.json
 
-# database
-data/crm.db
-data/crm.db-journal
-data/crm.db-wal
-data/crm.db-shm
+# database (el comodin cubre tambien las copias que deja una restauracion)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
 
 # drizzle
 /drizzle/

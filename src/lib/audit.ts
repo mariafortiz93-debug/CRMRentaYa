@@ -31,7 +31,8 @@ export type AuditEntity =
   | "gestion"
   | "actividad"
   | "usuario"
-  | "sesion";
+  | "sesion"
+  | "respaldo";
 
 export interface AuditInput {
   action: AuditAction;

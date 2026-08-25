@@ -15,18 +15,21 @@ import path from "path";
 import fs from "fs";
 import { ensurePipelineStages } from "../src/db/stages";
 import { ensureSuperAdmin } from "../src/db/users";
+import { dbPath, ensureDataDir } from "../src/db/paths";
 
-const DB_PATH = path.join(process.cwd(), "data", "crm.db");
+const DB_PATH = dbPath();
 const shouldSeed = process.argv.includes("--seed");
 
-// Ensure data directory
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+ensureDataDir();
+
+// Si el archivo ya existia, el disco sobrevivio al despliegue anterior. Si no,
+// o es la primera vez, o la carpeta NO es persistente y se acaban de perder
+// los datos. Se avisa mas abajo, cuando ya se pueden contar las filas.
+const dbExistedBefore = fs.existsSync(DB_PATH);
 
 console.log("Initializing Auto-CRM...");
 console.log(`Database: ${DB_PATH}`);
+console.log(`Base existente: ${dbExistedBefore ? "si" : "no (arranca vacia)"}`);
 
 const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
@@ -187,6 +190,33 @@ const admins = sqlite
 console.log(
   `Super administrador: ${admins.map((a) => a.username).join(", ") || "ninguno"}`
 );
+
+// Recuento de lo que hay. Queda en el log del hosting, asi que si un despliegue
+// borra los datos se ve en el momento y no semanas despues.
+const counts = ["contacts", "users", "visits", "management_logs", "activities"]
+  .map((t) => {
+    const row = sqlite.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get() as {
+      n: number;
+    };
+    return `${t}=${row.n}`;
+  })
+  .join(" ");
+console.log(`Datos: ${counts}`);
+
+if (!dbExistedBefore && process.env.NODE_ENV === "production") {
+  console.warn(
+    [
+      "",
+      "*** ATENCION: la base de datos no existia al arrancar. ***",
+      `Carpeta: ${DB_PATH}`,
+      "Si esperabas encontrar clientes aqui, esa carpeta NO es un disco",
+      "persistente y cada despliegue borra la informacion.",
+      "En Railway: Settings -> Volumes -> New Volume, Mount path /app/data",
+      "(o monta el disco donde quieras y define CRM_DATA_DIR con esa ruta).",
+      "",
+    ].join("\n")
+  );
+}
 
 sqlite.close();
 

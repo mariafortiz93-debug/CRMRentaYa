@@ -3,16 +3,12 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import { ensurePipelineStages } from "./stages";
 import { ensureSuperAdmin } from "./users";
-import path from "path";
-import fs from "fs";
+import { dbPath, ensureDataDir } from "./paths";
 
-const DB_PATH = path.join(process.cwd(), "data", "crm.db");
-
-// Ensure data directory exists
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+// La carpeta debe existir antes de abrir la base. Ver `paths.ts`: en produccion
+// tiene que ser un disco persistente, o cada despliegue empieza en blanco.
+ensureDataDir();
+const DB_PATH = dbPath();
 
 function createDatabase(): Database.Database {
   const db = new Database(DB_PATH, { timeout: 15000 });
@@ -187,3 +183,11 @@ try {
 }
 
 export const db = drizzle(sqlite, { schema });
+
+/**
+ * La conexion cruda de better-sqlite3.
+ *
+ * Solo la usan los respaldos, que necesitan operaciones que Drizzle no expone:
+ * copiar la base completa (`.backup()`) y pegar otra encima (`ATTACH`).
+ */
+export const rawDb = sqlite;
