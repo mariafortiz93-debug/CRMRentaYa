@@ -7,6 +7,8 @@ import type {
   ContactMethod,
   Classification,
   ClassificationDestination,
+  Plan,
+  ManagementOutcome,
 } from "@/types";
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
@@ -44,6 +46,22 @@ export const CONTACT_METHOD_CONFIG: Record<
 > = {
   whatsapp: { label: "Por WhatsApp", color: "#15803d", bgColor: "#dcfce7" },
   call: { label: "Por llamada", color: "#1d4ed8", bgColor: "#dbeafe" },
+};
+
+export const PLAN_CONFIG: Record<
+  Plan,
+  { label: string; color: string; bgColor: string }
+> = {
+  asalariado: { label: "Plan Asalariado", color: "#1d4ed8", bgColor: "#dbeafe" },
+  trabajo: { label: "Plan Trabajo", color: "#7c3aed", bgColor: "#ede9fe" },
+};
+
+export const MANAGEMENT_OUTCOME_CONFIG: Record<
+  ManagementOutcome,
+  { label: string; color: string; bgColor: string }
+> = {
+  contesto: { label: "Contesto", color: "#15803d", bgColor: "#dcfce7" },
+  no_contesto: { label: "No contesto", color: "#b91c1c", bgColor: "#fee2e2" },
 };
 
 /**

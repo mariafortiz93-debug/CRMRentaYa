@@ -10,9 +10,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CLASSIFICATION_CONFIG, CLASSIFICATION_ORDER } from "@/lib/constants";
+import { CLASSIFICATION_CONFIG, CLASSIFICATION_ORDER, PLAN_CONFIG } from "@/lib/constants";
 import { toast } from "sonner";
-import type { Classification, ClassificationDestination } from "@/types";
+import type { Classification, ClassificationDestination, Plan } from "@/types";
 
 interface ClassificationDialogProps {
   open: boolean;
@@ -20,6 +20,7 @@ interface ClassificationDialogProps {
   contactId: string;
   currentClassification?: string | null;
   currentDetail?: string | null;
+  currentPlan?: string | null;
   /** Recibe el nombre de la etapa destino. */
   onSaved?: (destination: ClassificationDestination) => void;
 }
@@ -30,18 +31,21 @@ export function ClassificationDialog({
   contactId,
   currentClassification,
   currentDetail,
+  currentPlan,
   onSaved,
 }: ClassificationDialogProps) {
   const [selected, setSelected] = useState<Classification | null>(null);
   const [detail, setDetail] = useState("");
+  const [plan, setPlan] = useState<Plan | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setSelected((currentClassification as Classification) || null);
       setDetail(currentDetail || "");
+      setPlan((currentPlan as Plan) || null);
     }
-  }, [open, currentClassification, currentDetail]);
+  }, [open, currentClassification, currentDetail, currentPlan]);
 
   const cfg = selected ? CLASSIFICATION_CONFIG[selected] : null;
   const needsDetail = !!cfg?.detailLabel;
@@ -59,6 +63,7 @@ export function ClassificationDialog({
         body: JSON.stringify({
           classification: selected,
           classificationDetail: needsDetail ? detail.trim() : null,
+          plan,
         }),
       });
       if (!res.ok) throw new Error("Error");
@@ -80,7 +85,32 @@ export function ClassificationDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
+          <div className="space-y-2">
+            <Label>Plan del cliente</Label>
+            <div className="flex gap-2">
+              {(["asalariado", "trabajo"] as const).map((p) => {
+                const cfg = PLAN_CONFIG[p];
+                const active = plan === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPlan(active ? null : p)}
+                    className="flex-1 rounded-lg px-3 py-2 text-sm font-medium border cursor-pointer transition-all"
+                    style={{
+                      backgroundColor: active ? cfg.bgColor : "transparent",
+                      color: active ? cfg.color : undefined,
+                      borderColor: active ? cfg.color : "var(--border)",
+                    }}
+                  >
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <p className="text-sm text-muted-foreground border-t pt-4">
             Selecciona por que el cliente quedo en este estado despues de contactarlo.
           </p>
 

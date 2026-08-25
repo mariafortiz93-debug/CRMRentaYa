@@ -6,6 +6,8 @@ import {
   VISIT_RESULT_CONFIG,
   CONTACT_METHOD_CONFIG,
   CLASSIFICATION_CONFIG,
+  PLAN_CONFIG,
+  MANAGEMENT_OUTCOME_CONFIG,
   cleanPhoneForWhatsApp,
 } from "@/lib/constants";
 import { useSortable } from "@dnd-kit/sortable";
@@ -20,6 +22,8 @@ import {
   UserRound,
   Tag,
   CheckCircle2,
+  History,
+  ArrowRight,
 } from "lucide-react";
 import type {
   LeadSource,
@@ -27,6 +31,8 @@ import type {
   VisitResult,
   ContactMethod,
   Classification,
+  Plan,
+  ManagementOutcome,
 } from "@/types";
 
 /** Dias sin llamar a un aprobado antes de marcarlo en rojo. */
@@ -63,22 +69,25 @@ interface ContactCardProps {
   nextAction: NextAction | null;
   primaryAction?: CardAction;
   onPrimaryAction?: () => void;
+  /** Accion secundaria: pasar el aprobado a Inicio de Tramite. */
+  onStartProcedure?: () => void;
   visitResult?: string | null;
   visitResultDate?: number | null;
-  contactMethod?: string | null;
+  plan?: string | null;
   classification?: string | null;
   classificationDetail?: string | null;
   visitador?: string | null;
-  /** Gestion de la llamada al aprobado. */
+  /** Resumen del historico de gestiones (columna Clientes Aprobados). */
+  managementCount?: number;
+  lastManagementOutcome?: string | null;
+  lastManagementMethod?: string | null;
+  /** Cuando fue la ultima gestion al aprobado. */
   approvedContactedAt?: number | null;
-  approvedContactMethod?: string | null;
   procedureStartDate?: number | null;
   /** Concesionario. */
   dealershipVisitedAt?: number | null;
   /** Cuando entro a la etapa actual (alerta de dias sin agendar). */
   stageChangedAt?: number | null;
-  /** Muestra el metodo de contacto (etapa Contactado). */
-  showContactInfo?: boolean;
   /** Muestra el visitador asignado (etapas Visita / Visitas Reagendadas). */
   showVisitador?: boolean;
   /** Alerta si lleva demasiados dias sin agendar la visita. */
@@ -95,18 +104,20 @@ export function ContactCard({
   nextAction,
   primaryAction,
   onPrimaryAction,
+  onStartProcedure,
   visitResult,
   visitResultDate,
-  contactMethod,
+  plan,
   classification,
   classificationDetail,
   visitador,
+  managementCount = 0,
+  lastManagementOutcome,
+  lastManagementMethod,
   approvedContactedAt,
-  approvedContactMethod,
   procedureStartDate,
   dealershipVisitedAt,
   stageChangedAt,
-  showContactInfo,
   showVisitador,
   warnIfUnscheduled,
   draggable = true,
@@ -127,18 +138,24 @@ export function ContactCard({
   };
 
   const resultCfg = visitResult ? VISIT_RESULT_CONFIG[visitResult as VisitResult] : null;
-  const methodCfg = contactMethod
-    ? CONTACT_METHOD_CONFIG[contactMethod as ContactMethod]
-    : null;
+  const planCfg = plan ? PLAN_CONFIG[plan as Plan] : null;
   const classCfg = classification
     ? CLASSIFICATION_CONFIG[classification as Classification]
     : null;
+  const lastOutcomeCfg = lastManagementOutcome
+    ? MANAGEMENT_OUTCOME_CONFIG[lastManagementOutcome as ManagementOutcome]
+    : null;
+  const lastMethodCfg = lastManagementMethod
+    ? CONTACT_METHOD_CONFIG[lastManagementMethod as ContactMethod]
+    : null;
 
-  // Aprobado sin gestionar: contador de dias desde la aprobacion.
+  // Aprobado: si nunca se ha gestionado, cuenta desde la aprobacion; si ya
+  // hubo gestiones, cuenta desde la ultima. En ambos casos alerta a los 3 dias.
   const isApprovedColumn = primaryAction === "gestionar_llamada";
-  const gestionado = !!approvedContactedAt;
-  const daysSinceApproval =
-    isApprovedColumn && !gestionado ? daysSince(visitResultDate) : null;
+  const gestionado = managementCount > 0;
+  const daysSinceApproval = isApprovedColumn
+    ? daysSince(gestionado ? approvedContactedAt : visitResultDate)
+    : null;
   const callOverdue =
     daysSinceApproval !== null && daysSinceApproval >= MAX_DAYS_TO_CONTACT;
 
@@ -148,9 +165,6 @@ export function ContactCard({
     daysWaiting !== null && daysWaiting >= MAX_DAYS_TO_SCHEDULE;
 
   const overdue = callOverdue || scheduleOverdue;
-  const methodUsedCfg = approvedContactMethod
-    ? CONTACT_METHOD_CONFIG[approvedContactMethod as ContactMethod]
-    : null;
 
   const dragProps = draggable ? { ...attributes, ...listeners } : {};
 
@@ -176,14 +190,14 @@ export function ContactCard({
           )}
         </div>
 
-        {(classCfg || (showContactInfo && methodCfg)) && (
+        {(classCfg || planCfg) && (
           <div className="flex flex-wrap gap-1">
-            {showContactInfo && methodCfg && (
+            {planCfg && (
               <span
                 className="text-[10px] font-medium rounded px-1.5 py-0.5"
-                style={{ backgroundColor: methodCfg.bgColor, color: methodCfg.color }}
+                style={{ backgroundColor: planCfg.bgColor, color: planCfg.color }}
               >
-                {methodCfg.label}
+                {planCfg.label}
               </span>
             )}
             {classCfg && (
@@ -242,22 +256,37 @@ export function ContactCard({
           >
             {callOverdue && <AlertTriangle className="h-3 w-3" />}
             {daysSinceApproval === 0
-              ? "Aprobado hoy · sin gestionar"
-              : `Sin gestionar hace ${daysSinceApproval} dia${daysSinceApproval === 1 ? "" : "s"}`}
+              ? gestionado
+                ? "Gestionado hoy"
+                : "Aprobado hoy · sin gestionar"
+              : `${gestionado ? "Ultima gestion hace" : "Sin gestionar hace"} ${daysSinceApproval} dia${daysSinceApproval === 1 ? "" : "s"}`}
             {callOverdue ? " · llamar ya" : ""}
           </div>
         )}
 
-        {isApprovedColumn && gestionado && (
-          <div className="text-[11px] space-y-0.5">
-            <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium bg-green-100 text-green-700">
-              <CheckCircle2 className="h-3 w-3" />
-              Gestionado
-              {methodUsedCfg ? ` ${methodUsedCfg.label.toLowerCase()}` : ""}
-            </span>
-            {procedureStartDate && (
+        {isApprovedColumn && managementCount > 0 && (
+          <div className="text-[11px] space-y-1">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium bg-slate-100 text-slate-700">
+                <History className="h-3 w-3" />
+                {managementCount} gestion{managementCount === 1 ? "" : "es"}
+              </span>
+              {lastOutcomeCfg && (
+                <span
+                  className="rounded px-1.5 py-0.5 font-medium"
+                  style={{
+                    backgroundColor: lastOutcomeCfg.bgColor,
+                    color: lastOutcomeCfg.color,
+                  }}
+                >
+                  {lastOutcomeCfg.label}
+                  {lastMethodCfg ? ` · ${lastMethodCfg.label.toLowerCase()}` : ""}
+                </span>
+              )}
+            </div>
+            {procedureStartDate && lastManagementOutcome === "contesto" && (
               <div className="text-muted-foreground">
-                Inicia tramite: {formatShortDate(procedureStartDate)}
+                Prometio iniciar: {formatShortDate(procedureStartDate)}
               </div>
             )}
           </div>
@@ -311,7 +340,7 @@ export function ContactCard({
             ) : primaryAction === "gestionar_llamada" ? (
               <>
                 <Phone className="h-3.5 w-3.5" />
-                {gestionado ? "Editar gestion" : "Registrar llamada"}
+                {gestionado ? "Gestionar / ver historico" : "Registrar gestion"}
               </>
             ) : primaryAction === "clasificar" ? (
               <>
@@ -329,6 +358,20 @@ export function ContactCard({
                 Agendar visita
               </>
             )}
+          </button>
+        )}
+
+        {isApprovedColumn && onStartProcedure && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartProcedure();
+            }}
+            className="w-full flex items-center justify-center gap-1.5 rounded-md border border-primary text-primary text-xs font-medium py-1.5 cursor-pointer hover:bg-primary/10"
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+            Paso a inicio de tramite
           </button>
         )}
       </div>

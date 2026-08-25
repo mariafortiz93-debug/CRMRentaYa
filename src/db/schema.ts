@@ -32,6 +32,7 @@ export const contacts = sqliteTable("contacts", {
   score: integer("score").notNull().default(0),
   notes: text("notes"),
   contactMethod: text("contact_method"), // whatsapp | call
+  plan: text("plan"), // asalariado | trabajo
   classification: text("classification"), // otra_marca | indeciso | ...
   classificationDetail: text("classification_detail"), // marca / ciudad / modelo
   classificationDate: integer("classification_date", { mode: "timestamp" }),
@@ -52,6 +53,27 @@ export const contacts = sqliteTable("contacts", {
     .notNull()
     .$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Historico de gestiones a clientes aprobados: cada llamada o WhatsApp que se
+ * hace para recordarles iniciar el tramite, con lo que respondio el cliente.
+ */
+export const managementLogs = sqliteTable("management_logs", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  contactId: text("contact_id")
+    .notNull()
+    .references(() => contacts.id),
+  method: text("method").notNull(), // whatsapp | call
+  outcome: text("outcome").notNull(), // contesto | no_contesto
+  /** Fecha en que el cliente dijo que iniciaria el tramite. */
+  promisedDate: integer("promised_date", { mode: "timestamp" }),
+  note: text("note"),
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
 });

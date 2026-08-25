@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { db } from "@/db";
-import { pipelineStages, contacts, visits } from "@/db/schema";
+import { pipelineStages, contacts, visits, managementLogs } from "@/db/schema";
 import { asc, desc } from "drizzle-orm";
 import { KanbanBoard } from "@/components/pipeline/KanbanBoard";
 import { VisitStatesButton } from "@/components/pipeline/VisitStatesButton";
@@ -45,14 +45,43 @@ export default async function PipelinePage({
     if (!latestVisit.has(v.contactId)) latestVisit.set(v.contactId, v);
   }
 
+  // Resumen de gestiones: cuantas y cual fue la ultima.
+  const allLogs = db
+    .select()
+    .from(managementLogs)
+    .orderBy(desc(managementLogs.createdAt))
+    .all();
+
+  const logSummary = new Map<
+    string,
+    { count: number; outcome: string; method: string }
+  >();
+  for (const log of allLogs) {
+    const entry = logSummary.get(log.contactId);
+    if (entry) {
+      entry.count++;
+    } else {
+      // El primero que llega es el mas reciente (van ordenados desc).
+      logSummary.set(log.contactId, {
+        count: 1,
+        outcome: log.outcome,
+        method: log.method,
+      });
+    }
+  }
+
   const visible: PipelineContact[] = allContacts
     .filter((c) => inRange(c.createdAt, range))
     .map((c) => {
       const v = latestVisit.get(c.id);
+      const g = logSummary.get(c.id);
       return {
         ...c,
         visitador: v?.visitador ?? null,
         visitScheduledAt: v?.scheduledAt ?? null,
+        managementCount: g?.count ?? 0,
+        lastManagementOutcome: g?.outcome ?? null,
+        lastManagementMethod: g?.method ?? null,
       } as PipelineContact;
     });
 

@@ -10,6 +10,7 @@ import { LeadSourceBreakdown } from "@/components/dashboard/LeadSourceBreakdown"
 import { VisitResultsCard } from "@/components/dashboard/VisitResultsCard";
 import { ClassificationBreakdown } from "@/components/dashboard/ClassificationBreakdown";
 import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
+import { ContactSearch } from "@/components/dashboard/ContactSearch";
 import { DateRangeFilter } from "@/components/shared/DateRangeFilter";
 import { resolveDateRange, inRange } from "@/lib/dateRange";
 import { CLASSIFICATION_ORDER } from "@/lib/constants";
@@ -263,6 +264,10 @@ export default async function DashboardPage({
       )}
 
       <NotificationBanner />
+
+      <ContactSearch
+        stages={stages.map((s) => ({ id: s.id, name: s.name, color: s.color }))}
+      />
 
       <KPICards stats={stats} />
 

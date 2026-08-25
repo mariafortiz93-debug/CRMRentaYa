@@ -91,6 +91,7 @@ export async function PUT(
   if (body.score !== undefined) updateData.score = Math.max(0, Math.min(100, body.score));
   if (body.notes !== undefined) updateData.notes = body.notes;
   if (body.contactMethod !== undefined) updateData.contactMethod = body.contactMethod;
+  if (body.plan !== undefined) updateData.plan = body.plan;
   if (body.classification !== undefined) {
     updateData.classification = body.classification;
     updateData.classificationDate = body.classification ? new Date() : null;

@@ -17,9 +17,13 @@ interface ContactCardData {
   visitResult: string | null;
   visitResultDate: number | null;
   contactMethod: string | null;
+  plan: string | null;
   classification: string | null;
   classificationDetail: string | null;
   visitador: string | null;
+  managementCount: number;
+  lastManagementOutcome: string | null;
+  lastManagementMethod: string | null;
   approvedContactedAt: number | null;
   approvedContactMethod: string | null;
   procedureStartDate: number | null;
@@ -33,10 +37,10 @@ interface KanbanColumnProps {
   color: string;
   nextAction: NextAction | null;
   onCardAction?: (contactId: string) => void;
+  onStartProcedure?: (contactId: string) => void;
   contacts: ContactCardData[];
   /** Columna calculada: no acepta drop y sus tarjetas no se arrastran. */
   virtual?: boolean;
-  showContactInfo?: boolean;
   showVisitador?: boolean;
   warnIfUnscheduled?: boolean;
 }
@@ -47,9 +51,9 @@ export function KanbanColumn({
   color,
   nextAction,
   onCardAction,
+  onStartProcedure,
   contacts,
   virtual,
-  showContactInfo,
   showVisitador,
   warnIfUnscheduled,
 }: KanbanColumnProps) {
@@ -95,21 +99,25 @@ export function KanbanColumn({
               primaryAction={contact.primaryAction}
               visitResult={contact.visitResult}
               visitResultDate={contact.visitResultDate}
-              contactMethod={contact.contactMethod}
+              plan={contact.plan}
               classification={contact.classification}
               classificationDetail={contact.classificationDetail}
               visitador={contact.visitador}
+              managementCount={contact.managementCount}
+              lastManagementOutcome={contact.lastManagementOutcome}
+              lastManagementMethod={contact.lastManagementMethod}
               approvedContactedAt={contact.approvedContactedAt}
-              approvedContactMethod={contact.approvedContactMethod}
               procedureStartDate={contact.procedureStartDate}
               dealershipVisitedAt={contact.dealershipVisitedAt}
               stageChangedAt={contact.stageChangedAt}
-              showContactInfo={showContactInfo}
               showVisitador={showVisitador}
               warnIfUnscheduled={warnIfUnscheduled}
               draggable={!virtual}
               onPrimaryAction={
                 onCardAction ? () => onCardAction(contact.id) : undefined
+              }
+              onStartProcedure={
+                onStartProcedure ? () => onStartProcedure(contact.id) : undefined
               }
             />
           ))}

@@ -61,6 +61,7 @@ sqlite.exec(`
     score INTEGER NOT NULL DEFAULT 0,
     notes TEXT,
     contact_method TEXT,
+    plan TEXT,
     classification TEXT,
     classification_detail TEXT,
     classification_date INTEGER,
@@ -75,6 +76,16 @@ sqlite.exec(`
     dealership_visited_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS management_logs (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL REFERENCES contacts(id),
+    method TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    promised_date INTEGER,
+    note TEXT,
+    created_at INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS visits (

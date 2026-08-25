@@ -84,6 +84,17 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     });
   };
 
+  const startProcedure = async (contactId: string) => {
+    const tramite = columns.find(
+      (c) => !c.virtual && c.name.toLowerCase() === "inicio de tramite"
+    );
+    if (!tramite) return;
+    moveContactLocal(contactId, "Inicio de Tramite");
+    await commitMove(contactId, tramite.id);
+    toast.success("Cliente movido a Inicio de Tramite");
+    router.refresh();
+  };
+
   const markDealershipVisit = async (contact: PipelineContact) => {
     try {
       const res = await fetch(`/api/contacts/${contact.id}`, {
@@ -263,7 +274,6 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
               color={column.color}
               nextAction={column.nextAction}
               virtual={column.virtual}
-              showContactInfo={stageName === "contactado"}
               showVisitador={
                 stageName === "visita" || stageName === "visitas reagendadas"
               }
@@ -271,6 +281,7 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
                 stageName === "agendar visita" || stageName === "visitas reagendadas"
               }
               onCardAction={(id) => handleCardAction(id, column.id)}
+              onStartProcedure={column.virtual ? startProcedure : undefined}
               contacts={column.contacts.map((c) => ({
                 id: c.id,
                 name: c.name,
@@ -280,9 +291,13 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
                 visitResult: c.visitResult,
                 visitResultDate: toMs(c.visitResultDate),
                 contactMethod: c.contactMethod,
+                plan: c.plan,
                 classification: c.classification,
                 classificationDetail: c.classificationDetail,
                 visitador: c.visitador ?? null,
+                managementCount: c.managementCount ?? 0,
+                lastManagementOutcome: c.lastManagementOutcome ?? null,
+                lastManagementMethod: c.lastManagementMethod ?? null,
                 approvedContactedAt: toMs(c.approvedContactedAt),
                 approvedContactMethod: c.approvedContactMethod,
                 procedureStartDate: toMs(c.procedureStartDate),
@@ -380,8 +395,7 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
           open={!!callContact}
           contactId={callContact.id}
           contactName={callContact.name}
-          currentMethod={callContact.approvedContactMethod}
-          currentDate={toMs(callContact.procedureStartDate)}
+          onSaved={() => router.refresh()}
           onClose={() => {
             setCallContact(null);
             router.refresh();
@@ -395,6 +409,7 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
           contactId={classifyContact.id}
           currentClassification={classifyContact.classification}
           currentDetail={classifyContact.classificationDetail}
+          currentPlan={classifyContact.plan}
           onSaved={async (destination) => {
             const target = columns.find(
               (c) => !c.virtual && c.name.toLowerCase() === destination.toLowerCase()

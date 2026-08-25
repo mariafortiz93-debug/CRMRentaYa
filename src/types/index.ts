@@ -17,6 +17,22 @@ export type VisitResult = "aprobado" | "negado" | "sin_proceso";
 
 export type ContactMethod = "whatsapp" | "call";
 
+/** Plan con el que aplica el cliente. */
+export type Plan = "asalariado" | "trabajo";
+
+/** Resultado de un intento de gestion. */
+export type ManagementOutcome = "contesto" | "no_contesto";
+
+export interface ManagementLog {
+  id: string;
+  contactId: string;
+  method: ContactMethod;
+  outcome: ManagementOutcome;
+  promisedDate: Date | null;
+  note: string | null;
+  createdAt: Date;
+}
+
 export type Classification =
   | "interesado"
   | "otra_marca"
@@ -49,6 +65,7 @@ export interface Contact {
   score: number;
   notes: string | null;
   contactMethod: ContactMethod | null;
+  plan: Plan | null;
   classification: Classification | null;
   classificationDetail: string | null;
   classificationDate: Date | null;
@@ -148,6 +165,10 @@ export interface ContactWithDeals extends Contact {
 export interface PipelineContact extends Contact {
   visitador?: string | null;
   visitScheduledAt?: Date | null;
+  /** Resumen del historico de gestiones. */
+  managementCount?: number;
+  lastManagementOutcome?: ManagementOutcome | null;
+  lastManagementMethod?: ContactMethod | null;
 }
 
 export interface PipelineColumn extends PipelineStage {

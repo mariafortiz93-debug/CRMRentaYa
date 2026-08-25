@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,13 +10,45 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Phone, MessageCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Phone, MessageCircle, History } from "lucide-react";
+import { MANAGEMENT_OUTCOME_CONFIG, CONTACT_METHOD_CONFIG } from "@/lib/constants";
 import { toast } from "sonner";
-import type { ContactMethod } from "@/types";
+import type { ContactMethod, ManagementOutcome } from "@/types";
 
 function todayParam(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function toDate(v: string | number): Date {
+  if (typeof v === "number") return new Date(v < 1e12 ? v * 1000 : v);
+  return new Date(v);
+}
+
+function formatDateTime(v: string | number): string {
+  return new Intl.DateTimeFormat("es-CO", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(toDate(v));
+}
+
+function formatDay(v: string | number): string {
+  return new Intl.DateTimeFormat("es-CO", {
+    day: "numeric",
+    month: "short",
+  }).format(toDate(v));
+}
+
+interface LogRow {
+  id: string;
+  method: string;
+  outcome: string;
+  promisedDate: string | number | null;
+  note: string | null;
+  createdAt: string | number;
 }
 
 interface ApprovedCallDialogProps {
@@ -24,8 +56,6 @@ interface ApprovedCallDialogProps {
   onClose: () => void;
   contactId: string;
   contactName: string;
-  currentMethod?: string | null;
-  currentDate?: number | null;
   onSaved?: () => void;
 }
 
@@ -34,41 +64,61 @@ export function ApprovedCallDialog({
   onClose,
   contactId,
   contactName,
-  currentMethod,
-  currentDate,
   onSaved,
 }: ApprovedCallDialogProps) {
   const [method, setMethod] = useState<ContactMethod | null>(null);
+  const [outcome, setOutcome] = useState<ManagementOutcome | null>(null);
   const [startDate, setStartDate] = useState("");
+  const [note, setNote] = useState("");
+  const [logs, setLogs] = useState<LogRow[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const loadLogs = useCallback(() => {
+    fetch(`/api/managements?contactId=${contactId}`)
+      .then((r) => r.json())
+      .then((d) => setLogs(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [contactId]);
 
   useEffect(() => {
     if (!open) return;
-    setMethod((currentMethod as ContactMethod) || null);
-    setStartDate(
-      currentDate
-        ? new Date(currentDate).toISOString().slice(0, 10)
-        : todayParam()
-    );
-  }, [open, currentMethod, currentDate]);
+    setMethod(null);
+    setOutcome(null);
+    setStartDate(todayParam());
+    setNote("");
+    loadLogs();
+  }, [open, loadLogs]);
 
   const handleSave = async () => {
     if (!method) return toast.error("Indica como contactaste al cliente");
-    if (!startDate) return toast.error("Indica la fecha de inicio de tramite");
+    if (!outcome) return toast.error("Indica si el cliente contesto");
+    if (outcome === "contesto" && !startDate) {
+      return toast.error("Indica la fecha de inicio de tramite");
+    }
+
     setSaving(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}`, {
-        method: "PUT",
+      const res = await fetch("/api/managements", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          approvedContactMethod: method,
-          procedureStartDate: new Date(`${startDate}T12:00:00`).toISOString(),
+          contactId,
+          method,
+          outcome,
+          promisedDate:
+            outcome === "contesto"
+              ? new Date(`${startDate}T12:00:00`).toISOString()
+              : null,
+          note: note.trim() || null,
         }),
       });
       if (!res.ok) throw new Error("Error");
       toast.success("Gestion registrada");
+      setMethod(null);
+      setOutcome(null);
+      setNote("");
+      loadLogs();
       onSaved?.();
-      onClose();
     } catch {
       toast.error("Error al registrar la gestion");
     } finally {
@@ -78,17 +128,12 @@ export function ApprovedCallDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Gestion de llamada</DialogTitle>
+          <DialogTitle>Gestion de {contactName.trim()}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Registra la llamada a <strong>{contactName}</strong> para recordarle que
-            inicie el tramite.
-          </p>
-
           <div className="space-y-2">
             <Label>Como lo contactaste?</Label>
             <div className="flex gap-3">
@@ -118,24 +163,108 @@ export function ApprovedCallDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="procedure-date">
-              Fecha en que el cliente iniciara el tramite
-            </Label>
-            <Input
-              id="procedure-date"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+            <Label>El cliente contesto?</Label>
+            <div className="flex gap-3">
+              {(["contesto", "no_contesto"] as const).map((o) => {
+                const cfg = MANAGEMENT_OUTCOME_CONFIG[o];
+                const active = outcome === o;
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => setOutcome(o)}
+                    className="flex-1 rounded-lg px-3 py-2 text-sm font-medium border cursor-pointer transition-all"
+                    style={{
+                      backgroundColor: active ? cfg.bgColor : "transparent",
+                      color: active ? cfg.color : undefined,
+                      borderColor: active ? cfg.color : "var(--border)",
+                    }}
+                  >
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {outcome === "contesto" && (
+            <div className="space-y-2">
+              <Label htmlFor="procedure-date">
+                Fecha en que el cliente iniciara el tramite
+              </Label>
+              <Input
+                id="procedure-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="management-note">Observacion (opcional)</Label>
+            <Textarea
+              id="management-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Que dijo el cliente..."
+              rows={2}
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose} className="cursor-pointer">
-              Cancelar
+              Cerrar
             </Button>
             <Button onClick={handleSave} disabled={saving} className="cursor-pointer">
               {saving ? "Guardando..." : "Registrar gestion"}
             </Button>
+          </div>
+
+          {/* Historico */}
+          <div className="border-t pt-4 space-y-2">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Historico de gestiones ({logs.length})
+            </p>
+            {logs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aun no se ha registrado ninguna gestion.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {logs.map((log) => {
+                  const oc = MANAGEMENT_OUTCOME_CONFIG[log.outcome as ManagementOutcome];
+                  const mc = CONTACT_METHOD_CONFIG[log.method as ContactMethod];
+                  return (
+                    <div key={log.id} className="rounded-lg border p-2 text-xs space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="rounded px-1.5 py-0.5 font-medium"
+                            style={{ backgroundColor: oc?.bgColor, color: oc?.color }}
+                          >
+                            {oc?.label || log.outcome}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {mc?.label || log.method}
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground shrink-0">
+                          {formatDateTime(log.createdAt)}
+                        </span>
+                      </div>
+                      {log.promisedDate && (
+                        <p className="text-muted-foreground">
+                          Prometio iniciar el {formatDay(log.promisedDate)}
+                        </p>
+                      )}
+                      {log.note && <p>{log.note}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>
