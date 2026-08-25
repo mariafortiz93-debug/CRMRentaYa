@@ -12,9 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Phone, MessageCircle, History } from "lucide-react";
-import { MANAGEMENT_OUTCOME_CONFIG, CONTACT_METHOD_CONFIG } from "@/lib/constants";
+import {
+  MANAGEMENT_OUTCOME_CONFIG,
+  CONTACT_METHOD_CONFIG,
+  MANAGEMENT_REASON_CONFIG,
+  MANAGEMENT_REASON_ORDER,
+} from "@/lib/constants";
 import { toast } from "sonner";
-import type { ContactMethod, ManagementOutcome } from "@/types";
+import type { ContactMethod, ManagementOutcome, ManagementReason } from "@/types";
 
 function todayParam(): string {
   const d = new Date();
@@ -47,6 +52,8 @@ interface LogRow {
   method: string;
   outcome: string;
   promisedDate: string | number | null;
+  reason: string | null;
+  reasonDetail: string | null;
   note: string | null;
   createdAt: string | number;
 }
@@ -69,9 +76,14 @@ export function ApprovedCallDialog({
   const [method, setMethod] = useState<ContactMethod | null>(null);
   const [outcome, setOutcome] = useState<ManagementOutcome | null>(null);
   const [startDate, setStartDate] = useState("");
+  const [reason, setReason] = useState<ManagementReason | null>(null);
+  const [reasonDetail, setReasonDetail] = useState("");
   const [note, setNote] = useState("");
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const reasonCfg = reason ? MANAGEMENT_REASON_CONFIG[reason] : null;
+  const desistio = reason === "desistio";
 
   const loadLogs = useCallback(() => {
     fetch(`/api/managements?contactId=${contactId}`)
@@ -85,6 +97,8 @@ export function ApprovedCallDialog({
     setMethod(null);
     setOutcome(null);
     setStartDate(todayParam());
+    setReason(null);
+    setReasonDetail("");
     setNote("");
     loadLogs();
   }, [open, loadLogs]);
@@ -92,8 +106,11 @@ export function ApprovedCallDialog({
   const handleSave = async () => {
     if (!method) return toast.error("Indica como contactaste al cliente");
     if (!outcome) return toast.error("Indica si el cliente contesto");
-    if (outcome === "contesto" && !startDate) {
+    if (outcome === "contesto" && !desistio && !startDate) {
       return toast.error("Indica la fecha de inicio de tramite");
+    }
+    if (reasonCfg?.detailLabel && !reasonDetail.trim()) {
+      return toast.error(reasonCfg.detailLabel);
     }
 
     setSaving(true);
@@ -106,16 +123,28 @@ export function ApprovedCallDialog({
           method,
           outcome,
           promisedDate:
-            outcome === "contesto"
+            outcome === "contesto" && !desistio
               ? new Date(`${startDate}T12:00:00`).toISOString()
               : null,
+          reason,
+          reasonDetail: reasonCfg?.detailLabel ? reasonDetail.trim() : null,
           note: note.trim() || null,
         }),
       });
       if (!res.ok) throw new Error("Error");
+
+      if (desistio) {
+        toast.success("Gestion registrada. El cliente paso a Perdido.");
+        onSaved?.();
+        onClose();
+        return;
+      }
+
       toast.success("Gestion registrada");
       setMethod(null);
       setOutcome(null);
+      setReason(null);
+      setReasonDetail("");
       setNote("");
       loadLogs();
       onSaved?.();
@@ -188,17 +217,62 @@ export function ApprovedCallDialog({
           </div>
 
           {outcome === "contesto" && (
-            <div className="space-y-2">
-              <Label htmlFor="procedure-date">
-                Fecha en que el cliente iniciara el tramite
-              </Label>
-              <Input
-                id="procedure-date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label>Por que aun no inicia el tramite? (opcional)</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {MANAGEMENT_REASON_ORDER.map((r) => {
+                    const cfg = MANAGEMENT_REASON_CONFIG[r];
+                    const active = reason === r;
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setReason(active ? null : r)}
+                        className="rounded-lg px-3 py-2 text-sm font-medium border cursor-pointer transition-all text-left"
+                        style={{
+                          backgroundColor: active ? cfg.bgColor : "transparent",
+                          color: active ? cfg.color : undefined,
+                          borderColor: active ? cfg.color : "var(--border)",
+                        }}
+                      >
+                        {cfg.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {reasonCfg?.detailLabel && (
+                <div className="space-y-2">
+                  <Label htmlFor="reason-detail">{reasonCfg.detailLabel}</Label>
+                  <Input
+                    id="reason-detail"
+                    value={reasonDetail}
+                    onChange={(e) => setReasonDetail(e.target.value)}
+                    placeholder="Escribe el motivo..."
+                  />
+                </div>
+              )}
+
+              {desistio ? (
+                <p className="text-sm text-red-700 bg-red-50 rounded-lg p-3">
+                  Al guardar, el cliente pasa a la etapa <strong>Perdido</strong>.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="procedure-date">
+                    Fecha en que el cliente iniciara el tramite
+                  </Label>
+                  <Input
+                    id="procedure-date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <div className="space-y-2">
@@ -259,7 +333,14 @@ export function ApprovedCallDialog({
                           Prometio iniciar el {formatDay(log.promisedDate)}
                         </p>
                       )}
-                      {log.note && <p>{log.note}</p>}
+                      {log.reason && (
+                        <p className="font-medium">
+                          {MANAGEMENT_REASON_CONFIG[log.reason as ManagementReason]
+                            ?.label || log.reason}
+                          {log.reasonDetail ? `: ${log.reasonDetail}` : ""}
+                        </p>
+                      )}
+                      {log.note && <p className="text-muted-foreground">{log.note}</p>}
                     </div>
                   );
                 })}

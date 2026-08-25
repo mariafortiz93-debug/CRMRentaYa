@@ -23,12 +23,23 @@ export type Plan = "asalariado" | "trabajo";
 /** Resultado de un intento de gestion. */
 export type ManagementOutcome = "contesto" | "no_contesto";
 
+/** Motivo por el que el cliente aun no inicia el tramite. */
+export type ManagementReason =
+  | "sin_dinero"
+  | "acompanante"
+  | "documentacion"
+  | "novedad_personal"
+  | "desistio"
+  | "otra";
+
 export interface ManagementLog {
   id: string;
   contactId: string;
   method: ContactMethod;
   outcome: ManagementOutcome;
   promisedDate: Date | null;
+  reason: ManagementReason | null;
+  reasonDetail: string | null;
   note: string | null;
   createdAt: Date;
 }

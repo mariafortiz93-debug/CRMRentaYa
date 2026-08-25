@@ -751,6 +751,8 @@ export function ContactDetailClient({
         onClose={() => setShowScheduleVisit(false)}
         contactId={contact.id}
         contactNeighborhood={contact.neighborhood}
+        contactAddress={contact.address}
+        contactCity={contact.city}
         onScheduled={() => {
           const visitaStage = stages.find((s) => s.name.toLowerCase() === "visita");
           if (visitaStage) setStageId(visitaStage.id);

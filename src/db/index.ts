@@ -89,6 +89,8 @@ function initTables(db: Database.Database): void {
       method TEXT NOT NULL,
       outcome TEXT NOT NULL,
       promised_date INTEGER,
+      reason TEXT,
+      reason_detail TEXT,
       note TEXT,
       created_at INTEGER NOT NULL
     )`,

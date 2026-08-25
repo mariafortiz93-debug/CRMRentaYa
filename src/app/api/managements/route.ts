@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { managementLogs, contacts } from "@/db/schema";
+import { managementLogs, contacts, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 /** Historico de gestiones. Con ?contactId= devuelve solo las de ese cliente. */
@@ -8,14 +8,18 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const contactId = searchParams.get("contactId");
 
-  const base = db
-    .select()
-    .from(managementLogs)
-    .orderBy(desc(managementLogs.createdAt));
-
   const rows = contactId
-    ? base.where(eq(managementLogs.contactId, contactId)).all()
-    : base.all();
+    ? db
+        .select()
+        .from(managementLogs)
+        .where(eq(managementLogs.contactId, contactId))
+        .orderBy(desc(managementLogs.createdAt))
+        .all()
+    : db
+        .select()
+        .from(managementLogs)
+        .orderBy(desc(managementLogs.createdAt))
+        .all();
 
   return NextResponse.json(rows);
 }
@@ -28,7 +32,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const { contactId, method, outcome, promisedDate, note } = body;
+  const { contactId, method, outcome, promisedDate, reason, reasonDetail, note } =
+    body;
 
   if (!contactId || !method || !outcome) {
     return NextResponse.json(
@@ -51,11 +56,23 @@ export async function POST(request: NextRequest) {
         method,
         outcome,
         promisedDate: promisedDate ? new Date(promisedDate) : null,
+        reason: reason || null,
+        reasonDetail: reasonDetail || null,
         note: note || null,
         createdAt: now,
       })
       .returning()
       .get();
+
+    // Si el cliente desistio, sale del embudo y pasa a Perdido.
+    const perdidoStage =
+      reason === "desistio"
+        ? db
+            .select()
+            .from(pipelineStages)
+            .all()
+            .find((s) => s.isLost)
+        : null;
 
     // El contacto guarda un resumen de la ultima gestion, para pintarlo en la
     // tarjeta sin tener que consultar el historico.
@@ -66,12 +83,16 @@ export async function POST(request: NextRequest) {
         ...(outcome === "contesto" && promisedDate
           ? { procedureStartDate: new Date(promisedDate) }
           : {}),
+        ...(perdidoStage ? { stageId: perdidoStage.id, stageChangedAt: now } : {}),
         updatedAt: now,
       })
       .where(eq(contacts.id, contactId))
       .run();
 
-    return NextResponse.json(log, { status: 201 });
+    return NextResponse.json(
+      { ...log, movedToLost: !!perdidoStage },
+      { status: 201 }
+    );
   } catch (error) {
     return NextResponse.json(
       {

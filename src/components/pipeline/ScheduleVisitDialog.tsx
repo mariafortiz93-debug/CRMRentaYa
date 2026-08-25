@@ -51,6 +51,8 @@ interface ScheduleVisitDialogProps {
   onClose: () => void;
   contactId: string;
   contactNeighborhood: string | null;
+  contactAddress?: string | null;
+  contactCity?: string | null;
   onScheduled?: () => void;
 }
 
@@ -59,6 +61,8 @@ export function ScheduleVisitDialog({
   onClose,
   contactId,
   contactNeighborhood,
+  contactAddress,
+  contactCity,
   onScheduled,
 }: ScheduleVisitDialogProps) {
   const [visitadores, setVisitadores] = useState<string[]>([]);
@@ -280,6 +284,18 @@ export function ScheduleVisitDialog({
               onChange={(e) => setNeighborhood(e.target.value)}
               placeholder="Barrio donde vive el cliente"
             />
+            {(contactAddress || contactCity) && (
+              <p className="text-xs text-muted-foreground">
+                Direccion registrada:{" "}
+                {[contactAddress, contactCity].filter(Boolean).join(", ")}
+              </p>
+            )}
+            {!contactNeighborhood && (
+              <p className="text-xs text-amber-700">
+                Este cliente no tiene barrio en su registro. Escribelo aqui y
+                completalo luego en su ficha.
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

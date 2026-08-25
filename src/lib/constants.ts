@@ -9,6 +9,7 @@ import type {
   ClassificationDestination,
   Plan,
   ManagementOutcome,
+  ManagementReason,
 } from "@/types";
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
@@ -63,6 +64,63 @@ export const MANAGEMENT_OUTCOME_CONFIG: Record<
   contesto: { label: "Contesto", color: "#15803d", bgColor: "#dcfce7" },
   no_contesto: { label: "No contesto", color: "#b91c1c", bgColor: "#fee2e2" },
 };
+
+/**
+ * Motivos por los que un cliente aprobado aun no inicia el tramite.
+ * `losesClient` marca los que sacan al cliente del embudo.
+ */
+export const MANAGEMENT_REASON_CONFIG: Record<
+  ManagementReason,
+  {
+    label: string;
+    color: string;
+    bgColor: string;
+    detailLabel?: string;
+    losesClient?: boolean;
+  }
+> = {
+  sin_dinero: {
+    label: "No tiene el valor inicial completo",
+    color: "#a16207",
+    bgColor: "#fef9c3",
+  },
+  acompanante: {
+    label: "El acompañante no ha tenido disponibilidad",
+    color: "#c2410c",
+    bgColor: "#ffedd5",
+  },
+  documentacion: {
+    label: "Documentacion incompleta (RUNT / notaria)",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+  },
+  novedad_personal: {
+    label: "Novedad personal (tiempo, calamidad, disponibilidad)",
+    color: "#0f766e",
+    bgColor: "#ccfbf1",
+  },
+  desistio: {
+    label: "Desistio del proceso",
+    color: "#b91c1c",
+    bgColor: "#fee2e2",
+    losesClient: true,
+  },
+  otra: {
+    label: "Otra",
+    color: "#475569",
+    bgColor: "#f1f5f9",
+    detailLabel: "Cual es el motivo?",
+  },
+};
+
+export const MANAGEMENT_REASON_ORDER: ManagementReason[] = [
+  "sin_dinero",
+  "acompanante",
+  "documentacion",
+  "novedad_personal",
+  "desistio",
+  "otra",
+];
 
 /**
  * Clasificacion del cliente al ser contactado.

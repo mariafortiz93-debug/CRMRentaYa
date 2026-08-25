@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { contacts, deals, activities, visits } from "@/db/schema";
+import { contacts, deals, activities, visits, managementLogs } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(
@@ -148,6 +148,7 @@ export async function DELETE(
 
   // Borrar primero todo lo que referencia al contacto (claves foraneas).
   db.delete(activities).where(eq(activities.contactId, id)).run();
+  db.delete(managementLogs).where(eq(managementLogs.contactId, id)).run();
   db.delete(visits).where(eq(visits.contactId, id)).run();
   db.delete(deals).where(eq(deals.contactId, id)).run();
   db.delete(contacts).where(eq(contacts.id, id)).run();

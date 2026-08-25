@@ -369,6 +369,8 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
           open={!!agendarContact}
           contactId={agendarContact.id}
           contactNeighborhood={agendarContact.neighborhood}
+          contactAddress={agendarContact.address}
+          contactCity={agendarContact.city}
           onScheduled={() => moveContactLocal(agendarContact.id, "Visita")}
           onClose={() => {
             setAgendarContact(null);

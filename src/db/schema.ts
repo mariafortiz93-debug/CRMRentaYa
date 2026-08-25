@@ -72,6 +72,9 @@ export const managementLogs = sqliteTable("management_logs", {
   outcome: text("outcome").notNull(), // contesto | no_contesto
   /** Fecha en que el cliente dijo que iniciaria el tramite. */
   promisedDate: integer("promised_date", { mode: "timestamp" }),
+  /** Por que aun no inicia el tramite. */
+  reason: text("reason"),
+  reasonDetail: text("reason_detail"),
   note: text("note"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
