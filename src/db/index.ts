@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
+import { ensurePipelineStages } from "./stages";
 import path from "path";
 import fs from "fs";
 
@@ -139,48 +140,15 @@ function initTables(db: Database.Database): void {
   }
 }
 
-function seedDefaultStages(db: Database.Database): void {
-  try {
-    const result = db
-      .prepare("SELECT COUNT(*) as count FROM pipeline_stages")
-      .get() as { count: number } | undefined;
-
-    if (!result || result.count > 0) return;
-
-    const defaultStages = [
-      { name: "Prospecto", order: 1, color: "#64748b", isWon: 0, isLost: 0 },
-      { name: "Contactado", order: 2, color: "#2563eb", isWon: 0, isLost: 0 },
-      { name: "Propuesta", order: 3, color: "#8b5cf6", isWon: 0, isLost: 0 },
-      { name: "Negociacion", order: 4, color: "#ea580c", isWon: 0, isLost: 0 },
-      { name: "Cerrado Ganado", order: 5, color: "#16a34a", isWon: 1, isLost: 0 },
-      { name: "Cerrado Perdido", order: 6, color: "#dc2626", isWon: 0, isLost: 1 },
-    ];
-
-    const insert = db.prepare(
-      `INSERT OR IGNORE INTO pipeline_stages (id, name, "order", color, is_won, is_lost) VALUES (?, ?, ?, ?, ?, ?)`
-    );
-
-    const seedAll = db.transaction(() => {
-      for (const stage of defaultStages) {
-        insert.run(
-          crypto.randomUUID(),
-          stage.name,
-          stage.order,
-          stage.color,
-          stage.isWon,
-          stage.isLost
-        );
-      }
-    });
-
-    seedAll();
-  } catch {
-    // Seeding can fail if another worker is doing it — that's fine
-  }
-}
-
 const sqlite = createDatabase();
 initTables(sqlite);
-seedDefaultStages(sqlite);
+try {
+  // Repara duplicados y alinea las etapas con crm-config.json. Es idempotente
+  // y esta protegida por un indice unico, asi que varios workers arrancando a
+  // la vez no pueden dejar etapas repetidas.
+  ensurePipelineStages(sqlite);
+} catch {
+  // Si otro worker la esta ejecutando, no bloqueamos el arranque.
+}
 
 export const db = drizzle(sqlite, { schema });

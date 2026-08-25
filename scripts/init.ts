@@ -10,10 +10,10 @@
  *   npx tsx scripts/init.ts --seed   # Init + demo data
  */
 
-import crypto from "crypto";
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { ensurePipelineStages } from "../src/db/stages";
 
 const DB_PATH = path.join(process.cwd(), "data", "crm.db");
 const shouldSeed = process.argv.includes("--seed");
@@ -131,48 +131,21 @@ sqlite.exec(`
 
 console.log("Tables created.");
 
-// Seed default pipeline stages
-const stageCount = sqlite
-  .prepare("SELECT COUNT(*) as count FROM pipeline_stages")
-  .get() as { count: number };
-
-if (stageCount.count === 0) {
-  const defaultStages = [
-    { name: "Prospecto", order: 1, color: "#64748b", isWon: 0, isLost: 0, nextAction: "whatsapp" },
-    { name: "Contactado", order: 2, color: "#2563eb", isWon: 0, isLost: 0, nextAction: "call" },
-    { name: "Propuesta", order: 3, color: "#8b5cf6", isWon: 0, isLost: 0, nextAction: null },
-    { name: "Negociacion", order: 4, color: "#ea580c", isWon: 0, isLost: 0, nextAction: null },
-    { name: "Cerrado Ganado", order: 5, color: "#16a34a", isWon: 1, isLost: 0, nextAction: null },
-    { name: "Cerrado Perdido", order: 6, color: "#dc2626", isWon: 0, isLost: 1, nextAction: null },
-  ];
-
-  const insert = sqlite.prepare(
-    `INSERT INTO pipeline_stages (id, name, "order", color, is_won, is_lost, next_action) VALUES (?, ?, ?, ?, ?, ?, ?)`
-  );
-
-  for (const stage of defaultStages) {
-    insert.run(
-      crypto.randomUUID(),
-      stage.name,
-      stage.order,
-      stage.color,
-      stage.isWon,
-      stage.isLost,
-      stage.nextAction
-    );
-  }
-  console.log("Default pipeline stages created.");
-} else {
-  console.log("Pipeline stages already exist, skipping.");
-}
-
-// Copy default config if none exists
+// La configuracion debe existir antes de sembrar, porque de ahi salen las etapas.
 const configPath = path.join(process.cwd(), "crm-config.json");
 const defaultConfigPath = path.join(process.cwd(), "public", "crm-config.json");
 if (!fs.existsSync(configPath) && fs.existsSync(defaultConfigPath)) {
   fs.copyFileSync(defaultConfigPath, configPath);
   console.log("Default crm-config.json created.");
 }
+
+// Crea las etapas que falten, une las repetidas y las alinea con la config.
+ensurePipelineStages(sqlite);
+const stages = sqlite
+  .prepare('SELECT name FROM pipeline_stages ORDER BY "order"')
+  .all() as Array<{ name: string }>;
+console.log(`Pipeline stages ready (${stages.length}):`);
+console.log("  " + stages.map((s) => s.name).join(" -> "));
 
 sqlite.close();
 
