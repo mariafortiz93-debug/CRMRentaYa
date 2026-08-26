@@ -66,6 +66,11 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
   const agendarStageId =
     columns.find((c) => c.name.toLowerCase() === "agendar visita")?.id ?? null;
 
+  // Etapas reales (sin la columna calculada) para el desplegable "Mover a".
+  const stageOptions = columns
+    .filter((c) => !c.virtual)
+    .map((c) => ({ id: c.id, name: c.name }));
+
   const moveContactLocal = (contactId: string, toStageName: string) => {
     setColumns((prev) => {
       const target = prev.find((c) => c.name.toLowerCase() === toStageName.toLowerCase());
@@ -125,6 +130,25 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     else if (action === "clasificar") setClassifyContact(contact);
     else if (action === "gestionar_llamada") setCallContact(contact);
     else if (action === "asistio_concesionario") markDealershipVisit(contact);
+  };
+
+  /**
+   * Cambio de etapa desde el desplegable de la tarjeta. Hace lo mismo que
+   * soltar la tarjeta en la columna, incluida la pregunta del medio de
+   * contacto al entrar a "Contactado".
+   */
+  const moveToStage = (contactId: string, stageId: string) => {
+    const target = columns.find((c) => !c.virtual && c.id === stageId);
+    if (!target) return;
+    // commitMove revierte a esta foto si la API falla. Al arrastrar se toma en
+    // handleDragStart; aqui no hay arrastre, asi que hay que tomarla ahora.
+    columnsSnapshot.current = columns;
+    moveContactLocal(contactId, target.name);
+    if (target.name.toLowerCase() === "contactado") {
+      setPendingMove({ contactId, stageId });
+      return;
+    }
+    commitMove(contactId, stageId);
   };
 
   const sensors = useSensors(
@@ -282,6 +306,8 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
               }
               onCardAction={(id) => handleCardAction(id, column.id)}
               onStartProcedure={column.virtual ? startProcedure : undefined}
+              stageOptions={stageOptions}
+              onMoveToStage={moveToStage}
               contacts={column.contacts.map((c) => ({
                 id: c.id,
                 name: c.name,
@@ -311,8 +337,16 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
 
       <DragOverlay>
         {activeContact ? (
+          /*
+            La tarjeta que sigue al cursor es solo decorativa. Tenia el mismo
+            id que la tarjeta real, asi que se registraba encima de ella en
+            dnd-kit y quedaba como zona de suelte pegada al puntero: ganaba
+            siempre la deteccion de colision y la tarjeta volvia a su columna.
+            Con id propio y sin arrastre queda fuera del calculo.
+          */
           <ContactCard
-            id={activeContact.id}
+            id={`overlay-${activeContact.id}`}
+            draggable={false}
             name={activeContact.name}
             phone={activeContact.phone}
             source={activeContact.source}

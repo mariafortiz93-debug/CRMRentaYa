@@ -58,11 +58,18 @@ Cartagena (Colombia).
 
 ## Flujo comercial (el pipeline)
 
-11 etapas, definidas en `crm-config.json`:
+11 etapas, definidas en `crm-config.json`.
+
+Para cambiar de etapa hay **dos caminos**: arrastrar la tarjeta, o el
+desplegable *"Mover a otra etapa..."* que trae cada tarjeta. El desplegable no
+es un adorno: en celular y en tablet el gesto de arrastrar mueve el tablero en
+vez de la tarjeta, y las columnas lejanas quedan fuera de la pantalla. Es un
+`<select>` del navegador a proposito, para que se abra nativo en el telefono y
+no pelee con el sensor de arrastre.
 
 | # | Etapa | Que pasa ahi |
 |---|-------|--------------|
-| 1 | **Prospecto** | Entra el lead. Solo se piden **nombre y telefono**. |
+| 1 | **Prospecto** | Entra el lead. Se piden **nombre, telefono y de donde viene**. La fuente se pregunta aqui, sin valor por defecto: es lo que alimenta el conteo por origen y la conversion por fuente. |
 | 2 | **Contactado** | Al mover aqui se pregunta si fue por WhatsApp o llamada. Se clasifica al cliente y se marca su **plan**. |
 | 3 | **Visita al Concesionario** | El cliente dijo que iria. Boton "Marcar asistencia" para registrar si fue. |
 | 4 | **Registro Online** | Boton "Diligenciar formulario": se completan **todos** los datos. Al guardar pasa solo a Agendar Visita. |
@@ -364,6 +371,10 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
   usuario y clave por persona, con roles y permisos que el super administrador
   activa uno por uno. Cada movimiento queda etiquetado con quien lo hizo, y la
   pantalla *Registros* muestra la lista y una grafica de desempeno del equipo.
+- **Fuente desde el prospecto, y arreglo del embudo** — la fuente se pregunta
+  al crear el lead (antes salia todo como "Otro"); "Iniciaron tramite" dejo de
+  contar a los clientes perdidos; y cada tarjeta trae un desplegable
+  *"Mover a otra etapa..."* para no depender del arrastre.
 
 ### Errores corregidos (no repetirlos)
 
@@ -394,6 +405,25 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
 - **Comprobar un despliegue buscando texto en el HTML**: no sirve. Las
   pantallas del CRM las dibuja JavaScript, asi que `curl | grep` da falsos
   negativos. Hay que abrirlo en un navegador de verdad.
+- **El embudo contaba a los perdidos como si hubieran iniciado tramite**:
+  "Iniciaron tramite" se media con `orden de etapa >= orden de Inicio de
+  Tramite`, y **Perdido es la ultima etapa (orden 11)**, o sea mayor que
+  Inicio de Tramite (9) y que Moto Entregada (10). Un cliente perdido sumaba
+  en los dos pasos finales del embudo. Regla: **medir avance por orden de
+  etapa exige excluir siempre las etapas `isLost`**, porque son salidas del
+  embudo, no el final del recorrido.
+- **La tarjeta que sigue al cursor rompia el arrastre**: el `DragOverlay`
+  pintaba un `ContactCard` con **el mismo id** que la tarjeta real, asi que se
+  registraba encima de ella en dnd-kit y quedaba como zona de suelte pegada al
+  puntero. Ganaba la deteccion de colision y la tarjeta volvia a su columna.
+  Lo mismo pasaba con las copias de la columna calculada "Clientes Aprobados".
+  Regla: **en dnd-kit, dos nodos jamas pueden compartir id**; las copias y la
+  tarjeta del overlay llevan su propio id (`virtual-...`, `overlay-...`) y
+  `draggable={false}`.
+- **Todos los leads salian como fuente "Otro"**: el formulario de creacion no
+  mostraba el desplegable de la fuente y lo mandaba con el valor por defecto
+  "otro". Regla: **un campo que alimenta un indicador no puede tener valor por
+  defecto**, o nadie lo cambia y el indicador miente.
 
 ---
 

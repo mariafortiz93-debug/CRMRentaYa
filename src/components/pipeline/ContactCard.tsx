@@ -94,6 +94,11 @@ interface ContactCardProps {
   warnIfUnscheduled?: boolean;
   /** Las tarjetas de columnas calculadas no se arrastran. */
   draggable?: boolean;
+  /** Etapas reales del tablero, para el desplegable "Mover a". */
+  stageOptions?: { id: string; name: string }[];
+  /** Etapa en la que esta la tarjeta ahora (se excluye del desplegable). */
+  currentStageId?: string | null;
+  onMoveToStage?: (stageId: string) => void;
 }
 
 export function ContactCard({
@@ -121,6 +126,9 @@ export function ContactCard({
   showVisitador,
   warnIfUnscheduled,
   draggable = true,
+  stageOptions,
+  currentStageId,
+  onMoveToStage,
 }: ContactCardProps) {
   const {
     attributes,
@@ -373,6 +381,37 @@ export function ContactCard({
             <ArrowRight className="h-3.5 w-3.5" />
             Paso a inicio de tramite
           </button>
+        )}
+
+        {/*
+          Segunda via para cambiar de etapa, sin arrastrar. Arrastrar no
+          siempre funciona: en celular y en tablet el gesto mueve el tablero
+          en vez de la tarjeta, y las columnas lejanas quedan fuera de la
+          pantalla. Es un <select> del navegador a proposito: se abre nativo
+          en el telefono y no pelea con el sensor de arrastre.
+        */}
+        {draggable && onMoveToStage && stageOptions && stageOptions.length > 0 && (
+          <select
+            value=""
+            aria-label="Mover a otra etapa"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const stageId = e.target.value;
+              e.target.value = "";
+              if (stageId) onMoveToStage(stageId);
+            }}
+            className="w-full rounded-md border bg-background text-xs text-muted-foreground py-1.5 px-2 cursor-pointer hover:bg-muted"
+          >
+            <option value="">Mover a otra etapa...</option>
+            {stageOptions
+              .filter((s) => s.id !== currentStageId)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
         )}
       </div>
     </Card>

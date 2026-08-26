@@ -22,11 +22,28 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { SOURCE_LABELS, MOTORCYCLE_LABELS } from "@/lib/constants";
+import type { LeadSource, MotorcycleInterest } from "@/types";
 
 const OBLIGATORIO = "Campo obligatorio";
 const req = z.string().trim().min(1, OBLIGATORIO);
 
-/** Captura inicial del prospecto: solo nombre y telefono. */
+/** Fuentes que se pueden elegir a mano (import y webhook los pone el sistema). */
+const SOURCE_OPTIONS: LeadSource[] = [
+  "redes",
+  "referido",
+  "volanteo",
+  "concesionario",
+  "otro",
+];
+
+/**
+ * Captura inicial del prospecto: nombre, telefono y de donde viene.
+ *
+ * La fuente se pide desde el primer momento y sin valor por defecto: cuando
+ * venia preseleccionada en "Otro" nadie la cambiaba, y todos los leads
+ * terminaban contados como "Otro" en el dashboard.
+ */
 const createSchema = z.object({
   name: req,
   phone: z.string(),
@@ -39,7 +56,7 @@ const createSchema = z.object({
   companionName: z.string(),
   motorcycleInterest: z.string(),
   company: z.string(),
-  source: z.string(),
+  source: req,
   notes: z.string(),
 });
 
@@ -100,7 +117,7 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId, onSa
       companionName: initialData?.companionName || "",
       motorcycleInterest: initialData?.motorcycleInterest || "boxer_ct100_ks",
       company: initialData?.company || "",
-      source: initialData?.source || "otro",
+      source: initialData?.source || "",
       notes: initialData?.notes || "",
     },
   });
@@ -162,6 +179,37 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId, onSa
             <Input id="phone" {...register("phone")} placeholder="+57 300 1234567" />
             {errors.phone && (
               <p className="text-xs text-destructive">{errors.phone.message}</p>
+            )}
+          </div>
+
+          {/*
+            La fuente se pregunta ya en el prospecto: es lo que alimenta el
+            conteo de leads por origen y la conversion por fuente.
+          */}
+          <div className="space-y-2">
+            <Label>Como supo de la empresa *</Label>
+            <Select
+              value={watch("source")}
+              onValueChange={(v) => v && setValue("source", v, { shouldValidate: true })}
+            >
+              <SelectTrigger className="cursor-pointer">
+                {/* Sin esto el desplegable mostraria el valor crudo ("redes"). */}
+                <SelectValue placeholder="Selecciona de donde viene">
+                  {(value: string) =>
+                    SOURCE_LABELS[value as LeadSource] || "Selecciona de donde viene"
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SOURCE_OPTIONS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {SOURCE_LABELS[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.source && (
+              <p className="text-xs text-destructive">{errors.source.message}</p>
             )}
           </div>
 
@@ -245,40 +293,24 @@ export function ContactForm({ open, onClose, initialData, advanceToStageId, onSa
                 <Input id="company" {...register("company")} placeholder="Nombre de la empresa" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Como supo de la empresa *</Label>
-                  <Select
-                    value={watch("source")}
-                    onValueChange={(v) => v && setValue("source", v)}
-                  >
-                    <SelectTrigger className="cursor-pointer">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="redes">Redes sociales</SelectItem>
-                      <SelectItem value="referido">Referido</SelectItem>
-                      <SelectItem value="volanteo">Volanteo</SelectItem>
-                      <SelectItem value="concesionario">Concesionario</SelectItem>
-                      <SelectItem value="otro">Otro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Moto de interes *</Label>
-                  <Select
-                    value={watch("motorcycleInterest")}
-                    onValueChange={(v) => v && setValue("motorcycleInterest", v)}
-                  >
-                    <SelectTrigger className="cursor-pointer">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="boxer_ct100_ks">Boxer CT100 KS</SelectItem>
-                      <SelectItem value="boxer_ct100_es">Boxer CT100 ES</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>Moto de interes *</Label>
+                <Select
+                  value={watch("motorcycleInterest")}
+                  onValueChange={(v) => v && setValue("motorcycleInterest", v)}
+                >
+                  <SelectTrigger className="cursor-pointer">
+                    <SelectValue>
+                      {(value: string) =>
+                        MOTORCYCLE_LABELS[value as MotorcycleInterest] || "Selecciona"
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="boxer_ct100_ks">Boxer CT100 KS</SelectItem>
+                    <SelectItem value="boxer_ct100_es">Boxer CT100 ES</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

@@ -93,19 +93,27 @@ export default async function DashboardPage({
   const contactadoOrder =
     stages.find((s) => s.name.toLowerCase() === "contactado")?.order ?? Infinity;
 
+  // "Perdido" es la ultima etapa del tablero (orden 11), asi que medir el
+  // avance solo por el numero de orden contaba a un cliente perdido como si
+  // hubiera pasado por Inicio de Tramite y por Moto Entregada. Las etapas de
+  // salida del embudo nunca cuentan como avance.
+  const lostStageIds = new Set(stages.filter((s) => s.isLost).map((s) => s.id));
+  const reached = (c: (typeof allContacts)[number], order: number) => {
+    const id = c.stageId || "";
+    if (lostStageIds.has(id)) return false;
+    return (stageOrderById.get(id) ?? -1) >= order;
+  };
+
   const totalLeads = allContacts.length;
   // Contactado = se registro el medio, o ya avanzo mas alla de Prospecto, o
   // ya tiene resultado de visita. Asi el embudo nunca supera el 100%.
   const contactados = allContacts.filter(
-    (c) =>
-      c.contactMethod ||
-      c.visitResult ||
-      (stageOrderById.get(c.stageId || "") ?? -1) >= contactadoOrder
+    (c) => c.contactMethod || c.visitResult || reached(c, contactadoOrder)
   ).length;
   const conVisita = allContacts.filter((c) => c.visitResult).length;
   const aprobados = allContacts.filter((c) => c.visitResult === "aprobado").length;
-  const iniciaronTramite = allContacts.filter(
-    (c) => (stageOrderById.get(c.stageId || "") ?? -1) >= tramiteOrder
+  const iniciaronTramite = allContacts.filter((c) =>
+    reached(c, tramiteOrder)
   ).length;
   const entregadas = allContacts.filter((c) => {
     const stage = stages.find((s) => s.id === c.stageId);

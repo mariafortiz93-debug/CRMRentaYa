@@ -38,6 +38,9 @@ interface KanbanColumnProps {
   nextAction: NextAction | null;
   onCardAction?: (contactId: string) => void;
   onStartProcedure?: (contactId: string) => void;
+  /** Etapas reales, para el desplegable "Mover a" de cada tarjeta. */
+  stageOptions?: { id: string; name: string }[];
+  onMoveToStage?: (contactId: string, stageId: string) => void;
   contacts: ContactCardData[];
   /** Columna calculada: no acepta drop y sus tarjetas no se arrastran. */
   virtual?: boolean;
@@ -52,6 +55,8 @@ export function KanbanColumn({
   nextAction,
   onCardAction,
   onStartProcedure,
+  stageOptions,
+  onMoveToStage,
   contacts,
   virtual,
   showVisitador,
@@ -83,15 +88,28 @@ export function KanbanColumn({
         </p>
       )}
 
+      {/*
+        El mismo cliente sale en "Estado de la Visita" y en la columna
+        calculada. dnd-kit indexa por id, asi que si las dos tarjetas usaran
+        el id del contacto la segunda pisaria a la primera y el aprobado
+        dejaria de poder arrastrarse. La copia calculada lleva id propio.
+      */}
       <SortableContext
-        items={contacts.map((c) => c.id)}
+        items={contacts.map((c) => (virtual ? `virtual-${c.id}` : c.id))}
         strategy={verticalListSortingStrategy}
       >
         <div className="flex-1 p-2 space-y-2 min-h-[100px] overflow-y-auto">
           {contacts.map((contact) => (
             <ContactCard
               key={virtual ? `virtual-${contact.id}` : contact.id}
-              id={contact.id}
+              id={virtual ? `virtual-${contact.id}` : contact.id}
+              stageOptions={stageOptions}
+              currentStageId={id}
+              onMoveToStage={
+                onMoveToStage
+                  ? (stageId) => onMoveToStage(contact.id, stageId)
+                  : undefined
+              }
               name={contact.name}
               phone={contact.phone}
               source={contact.source}
