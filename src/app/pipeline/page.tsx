@@ -21,23 +21,23 @@ export default async function PipelinePage({
   const params = await searchParams;
   const range = resolveDateRange(params);
 
-  const stages = db
+  const stages = (await db
     .select()
     .from(pipelineStages)
     .orderBy(asc(pipelineStages.order))
-    .all();
+    );
 
-  const allContacts = db
+  const allContacts = (await db
     .select()
     .from(contacts)
     .orderBy(desc(contacts.createdAt))
-    .all();
+    );
 
-  const allVisits = db
+  const allVisits = (await db
     .select()
     .from(visits)
     .orderBy(desc(visits.scheduledAt))
-    .all();
+    );
 
   // Visita mas reciente por contacto, para mostrar el visitador en la tarjeta.
   const latestVisit = new Map<string, (typeof allVisits)[number]>();
@@ -46,11 +46,11 @@ export default async function PipelinePage({
   }
 
   // Resumen de gestiones: cuantas y cual fue la ultima.
-  const allLogs = db
+  const allLogs = (await db
     .select()
     .from(managementLogs)
     .orderBy(desc(managementLogs.createdAt))
-    .all();
+    );
 
   const logSummary = new Map<
     string,

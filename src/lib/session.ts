@@ -13,6 +13,7 @@ import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
+import { one } from "@/db/one";
 import { users } from "@/db/schema";
 import { SESSION_COOKIE, readSession } from "./auth";
 import {
@@ -67,7 +68,7 @@ export async function getSessionUser(
   const userId = await readSession(raw);
   if (!userId) return null;
 
-  const row = db.select().from(users).where(eq(users.id, userId)).get();
+  const row = (await one(db.select().from(users).where(eq(users.id, userId))));
   if (!row || !row.active) return null;
 
   return toPublicUser(row);

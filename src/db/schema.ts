@@ -1,10 +1,28 @@
+/**
+ * Esquema en PostgreSQL.
+ *
+ * Antes esto era SQLite, un archivo (`crm.db`) que vivia dentro del mismo
+ * contenedor que la aplicacion. Railway no actualiza el contenedor: lo
+ * reemplaza, asi que cada despliegue se llevaba la base por delante. Ahora la
+ * base es un servicio aparte y sobrevive a los despliegues por si sola.
+ *
+ * Diferencias que hay que tener presentes al tocar este archivo:
+ *  - Las fechas son `timestamp` de verdad, no enteros. Drizzle sigue
+ *    entregando y recibiendo objetos `Date`.
+ *  - Los si/no son `boolean`, no enteros 0/1.
+ *  - Las consultas son **asincronas**: siempre `await`, y devuelven arreglos.
+ *    Para quedarse con una sola fila esta `one()`, en `src/db/one.ts`.
+ */
+
 import {
-  sqliteTable,
+  pgTable,
   text,
   integer,
+  boolean,
+  timestamp,
   uniqueIndex,
   index,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 
 /**
  * Colaboradores que entran al CRM. Cada uno con su usuario y su clave.
@@ -14,7 +32,7 @@ import {
  * `src/lib/permissions.ts`). El super administrador ignora la lista: puede
  * todo, y es el unico que administra usuarios.
  */
-export const users = sqliteTable(
+export const users = pgTable(
   "users",
   {
     id: text("id")
@@ -29,16 +47,16 @@ export const users = sqliteTable(
     /** JSON con la lista de permisos activos. */
     permissions: text("permissions").notNull().default("[]"),
     /** Un usuario desactivado no puede entrar, pero su historial se conserva. */
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    active: boolean("active").notNull().default(true),
     /** Avisa que todavia usa la clave que le asignaron. */
-    mustChangePassword: integer("must_change_password", { mode: "boolean" })
+    mustChangePassword: boolean("must_change_password")
       .notNull()
       .default(false),
-    lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
-    createdAt: integer("created_at", { mode: "timestamp" })
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp" })
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -54,7 +72,7 @@ export const users = sqliteTable(
  * eso guarda tambien el nombre del usuario y una etiqueta del registro
  * afectado, copiados en el momento de la accion.
  */
-export const auditLogs = sqliteTable(
+export const auditLogs = pgTable(
   "audit_logs",
   {
     id: text("id")
@@ -72,7 +90,7 @@ export const auditLogs = sqliteTable(
     entityLabel: text("entity_label"),
     /** Frase en espanol con lo que paso. */
     detail: text("detail"),
-    createdAt: integer("created_at", { mode: "timestamp" })
+    createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .$defaultFn(() => new Date()),
   },
@@ -82,19 +100,19 @@ export const auditLogs = sqliteTable(
   ]
 );
 
-export const pipelineStages = sqliteTable("pipeline_stages", {
+export const pipelineStages = pgTable("pipeline_stages", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   order: integer("order").notNull(),
   color: text("color").notNull().default("#64748b"),
-  isWon: integer("is_won", { mode: "boolean" }).notNull().default(false),
-  isLost: integer("is_lost", { mode: "boolean" }).notNull().default(false),
+  isWon: boolean("is_won").notNull().default(false),
+  isLost: boolean("is_lost").notNull().default(false),
   nextAction: text("next_action"),
 });
 
-export const contacts = sqliteTable("contacts", {
+export const contacts = pgTable("contacts", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -117,24 +135,24 @@ export const contacts = sqliteTable("contacts", {
   plan: text("plan"), // asalariado | trabajo
   classification: text("classification"), // otra_marca | indeciso | ...
   classificationDetail: text("classification_detail"), // marca / ciudad / modelo
-  classificationDate: integer("classification_date", { mode: "timestamp" }),
+  classificationDate: timestamp("classification_date", { withTimezone: true }),
   visitResult: text("visit_result"), // aprobado | negado | sin_proceso
-  visitResultDate: integer("visit_result_date", { mode: "timestamp" }),
+  visitResultDate: timestamp("visit_result_date", { withTimezone: true }),
   visitResultNote: text("visit_result_note"),
   /** Cuando entro a la etapa actual (para las alertas de dias sin gestion). */
-  stageChangedAt: integer("stage_changed_at", { mode: "timestamp" }),
+  stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }),
   /** Gestion de la llamada al cliente aprobado. */
-  approvedContactedAt: integer("approved_contacted_at", { mode: "timestamp" }),
+  approvedContactedAt: timestamp("approved_contacted_at", { withTimezone: true }),
   approvedContactMethod: text("approved_contact_method"), // whatsapp | call
   /** Fecha en que el cliente dijo que iniciara el tramite. */
-  procedureStartDate: integer("procedure_start_date", { mode: "timestamp" }),
+  procedureStartDate: timestamp("procedure_start_date", { withTimezone: true }),
   /** Concesionario: cuando anuncio que iria y cuando asistio. */
-  dealershipAnnouncedAt: integer("dealership_announced_at", { mode: "timestamp" }),
-  dealershipVisitedAt: integer("dealership_visited_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  dealershipAnnouncedAt: timestamp("dealership_announced_at", { withTimezone: true }),
+  dealershipVisitedAt: timestamp("dealership_visited_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -143,7 +161,7 @@ export const contacts = sqliteTable("contacts", {
  * Historico de gestiones a clientes aprobados: cada llamada o WhatsApp que se
  * hace para recordarles iniciar el tramite, con lo que respondio el cliente.
  */
-export const managementLogs = sqliteTable("management_logs", {
+export const managementLogs = pgTable("management_logs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -153,17 +171,17 @@ export const managementLogs = sqliteTable("management_logs", {
   method: text("method").notNull(), // whatsapp | call
   outcome: text("outcome").notNull(), // contesto | no_contesto
   /** Fecha en que el cliente dijo que iniciaria el tramite. */
-  promisedDate: integer("promised_date", { mode: "timestamp" }),
+  promisedDate: timestamp("promised_date", { withTimezone: true }),
   /** Por que aun no inicia el tramite. */
   reason: text("reason"),
   reasonDetail: text("reason_detail"),
   note: text("note"),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .$defaultFn(() => new Date()),
 });
 
-export const visits = sqliteTable("visits", {
+export const visits = pgTable("visits", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -172,13 +190,13 @@ export const visits = sqliteTable("visits", {
     .references(() => contacts.id),
   visitador: text("visitador").notNull(),
   neighborhood: text("neighborhood"),
-  scheduledAt: integer("scheduled_at", { mode: "timestamp" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .$defaultFn(() => new Date()),
 });
 
-export const deals = sqliteTable("deals", {
+export const deals = pgTable("deals", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -190,18 +208,18 @@ export const deals = sqliteTable("deals", {
   contactId: text("contact_id")
     .notNull()
     .references(() => contacts.id),
-  expectedClose: integer("expected_close", { mode: "timestamp" }),
+  expectedClose: timestamp("expected_close", { withTimezone: true }),
   probability: integer("probability").notNull().default(0),
   notes: text("notes"),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .$defaultFn(() => new Date()),
 });
 
-export const activities = sqliteTable("activities", {
+export const activities = pgTable("activities", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -211,14 +229,14 @@ export const activities = sqliteTable("activities", {
     .notNull()
     .references(() => contacts.id),
   dealId: text("deal_id").references(() => deals.id),
-  scheduledAt: integer("scheduled_at", { mode: "timestamp" }),
-  completedAt: integer("completed_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .$defaultFn(() => new Date()),
 });
 
-export const crmSettings = sqliteTable("crm_settings", {
+export const crmSettings = pgTable("crm_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });

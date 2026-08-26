@@ -12,33 +12,28 @@ su propia clave**, y que todos vean la misma informacion en tiempo real.
 
 ## Por que no sirve compartirlo por Drive / OneDrive
 
-- **La base de datos se dana.** SQLite bloquea el archivo mientras escribe.
-  Drive y OneDrive no respetan ese bloqueo: copian el archivo completo y, si
-  dos personas guardan a la vez, crean copias en conflicto o corrompen la base.
 - **No es un documento, es un programa.** Cada persona tendria que instalar
-  Node.js y levantar un servidor en su maquina.
-- **Verian datos viejos.** La sincronizacion no es inmediata.
+  Node.js, levantar un servidor y una base de datos en su maquina.
+- **Cada quien veria lo suyo.** No habria una sola informacion compartida:
+  habria cinco copias distintas, y ninguna al dia.
 
 ---
 
 ## Opcion recomendada: Railway
 
 Es la mas sencilla. Se conecta a GitHub y despliega solo. Cuesta alrededor de
-5 USD al mes (tiene credito gratis para probar).
+5 USD al mes el servicio del CRM, mas otro tanto la base de datos.
 
-### Requisito clave: disco persistente
+### Requisito clave: la base de datos va aparte
 
-El CRM guarda todo en `data/crm.db`. Sin un disco persistente, **cada vez que
-se actualiza la aplicacion se borra la informacion**: clientes, usuarios, todo.
-Por eso el paso 3 no es opcional.
+El CRM guarda todo en **PostgreSQL**, que en Railway es un servicio separado.
+Eso es lo que hace que la informacion **sobreviva a las actualizaciones**.
 
-Como saber si lo tienes: entra a *Configuracion* despues de un despliegue. Si
-los clientes siguen ahi, el disco esta bien. Tambien queda en los logs de
-Railway: al arrancar, el CRM imprime `Datos: contacts=... users=...` y, si la
-base venia vacia, un aviso en mayusculas.
+Cuando Railway despliega no actualiza el contenedor del CRM: lo **reemplaza**
+por uno nuevo. Antes la base era un archivo dentro de ese contenedor, y se iba
+con el. Por eso se perdieron los datos tres veces.
 
-Si Railway no te deja usar `/app/data`, montalo donde te deje y agrega una
-variable `CRM_DATA_DIR` con esa misma ruta.
+Ahora la base esta fuera. No hay disco que montar ni ruta que escribir bien.
 
 ### Paso a paso
 
@@ -47,18 +42,22 @@ variable `CRM_DATA_DIR` con esa misma ruta.
    (la misma de `mariafortiz93-debug`).
 
 2. **Crear el proyecto**
-   - `New Project` -> `Deploy from GitHub repo`
+   - `New Project` → `Deploy from GitHub repo`
    - Autoriza a Railway a ver tus repos y elige **`CRMRentaYa`**
    - Railway detecta el `Dockerfile` y empieza a construir solo.
 
-3. **Agregar el disco persistente** (imprescindible)
-   - Dentro del servicio: `Settings` -> `Volumes` -> `New Volume`
-   - **Mount path:** `/app/data`
-   - Guarda. El servicio se reinicia con el disco montado.
+3. **Agregar la base de datos** — *imprescindible*
+   - En el proyecto: `New` → `Database` → `PostgreSQL`
+   - Railway la crea y la conecta al servicio del CRM, inyectando la variable
+     `DATABASE_URL`. **No hay que escribirla a mano.**
+   - Si el CRM no la ve: entra al servicio del CRM → `Variables` →
+     `Add Reference` → elige la base → `DATABASE_URL`.
+
+   Sin este paso el CRM no arranca, y lo dice claro en los logs.
 
 4. **Poner el secreto de las sesiones**
-   - `Variables` -> `New Variable`
-   - Nombre: `CRM_SESSION_SECRET`, valor: cualquier texto largo y aleatorio.
+   - `Variables` → `New Variable`
+   - Nombre `CRM_SESSION_SECRET`, valor: cualquier texto largo y aleatorio.
      Con el se firman las cookies; si lo cambias, todo el mundo tiene que
      volver a entrar.
    - Opcional: `CRM_ADMIN_USER` y `CRM_ADMIN_PASSWORD` para elegir tu el
@@ -66,64 +65,78 @@ variable `CRM_DATA_DIR` con esa misma ruta.
      `maria` con la clave `RentaYa2026*`.
 
 5. **Generar el enlace**
-   - `Settings` -> `Networking` -> `Generate Domain`
+   - `Settings` → `Networking` → `Generate Domain`
 
-6. **Entrar y armar el equipo**
+6. **Comprobar que quedo bien**
+
+   En los logs del despliegue debe salir algo asi:
+
+   ```
+   Base de datos: xxxxx.railway.internal:5432/railway
+   Base existente: no (arranca vacia)
+   Tablas listas.
+   Etapas del pipeline (11):
+     Prospecto -> Contactado -> Visita al Concesionario -> ...
+   Super administrador: maria
+   Datos: ... contacts=0 users=1 ...
+   ```
+
+   En el **segundo** despliegue debe decir `Base existente: si` y conservar el
+   numero de clientes. Si sigue diciendo `no`, la base no esta conectada.
+
+7. **Entrar y armar el equipo**
    - Entra con el usuario administrador y **cambia la clave de inmediato**
      desde *Mis datos*. El CRM muestra un aviso amarillo hasta que lo hagas.
-   - Ve a *Usuarios* -> `Nuevo colaborador` y crea uno para cada persona.
+   - Ve a *Usuarios* → `Nuevo colaborador` y crea uno para cada persona.
    - Marca solo las secciones que necesita: un visitador no tiene por que ver
      el dashboard ni borrar clientes.
-   - Envia a cada uno su usuario y su clave inicial. La primera vez que entre
+   - Crea un **segundo super administrador**, por si pierdes tu clave.
+   - Envia a cada uno su usuario y su clave inicial. La primera vez que entre,
      el CRM le pedira cambiarla.
 
 ---
 
-## Alternativa mas economica: Fly.io
+## Levantarlo en tu computador
 
-Tiene capa gratuita mas amplia, pero se configura por linea de comandos
-(`fly launch`, `fly volumes create`). Conviene si el costo mensual importa mas
-que la comodidad.
+Necesitas un PostgreSQL. Lo mas facil es con Docker:
+
+```bash
+docker compose up
+```
+
+Eso levanta la base y el CRM juntos, en <http://localhost:3000>.
+
+Sin Docker, instala PostgreSQL, crea una base y pon la direccion en
+`.env.local`:
+
+```
+DATABASE_URL=postgresql://usuario:clave@localhost:5432/crm
+CRM_SESSION_SECRET=lo-que-quieras
+```
+
+Despues:
+
+```bash
+npm install
+npm run init
+npm run dev
+```
 
 ---
-
-## Alternativa sin costo: red local de la oficina
-
-Si los cinco trabajan en la misma oficina y en el mismo WiFi:
-
-1. En el computador que hara de servidor:
-   ```bash
-   npm run build
-   npx next start -H 0.0.0.0
-   ```
-2. Averigua su IP local (`ipconfig` en Windows), por ejemplo `192.168.1.57`.
-3. Los demas entran a `http://192.168.1.57:3000`.
-
-Limitaciones: solo funciona dentro de esa red, ese computador debe permanecer
-encendido, y no hay HTTPS. El ingreso con usuario y clave funciona igual.
-
----
-
-## Sobre la informacion actual
-
-Al publicarlo, el CRM en la nube **arranca vacio**: los contactos que tienes
-hoy estan en tu computador. Se pueden pasar de dos maneras:
-
-- Exportar los contactos a Excel desde el CRM local y volverlos a cargar, o
-- Subir el archivo `data/crm.db` al disco persistente (pideme ayuda y lo hago).
 
 ## Respaldos
 
-Toda la informacion vive en un solo archivo: `data/crm.db`.
-
-Desde el CRM: **Configuracion → Respaldos → Descargar respaldo**. Baja ese
-archivo y guardalo fuera del servidor (tu computador, Drive, donde sea).
-Conviene hacerlo una vez por semana, y siempre antes de una actualizacion
-grande.
+**Configuracion → Respaldos → Descargar respaldo.** Baja un archivo JSON con
+todo (clientes, visitas, gestiones, usuarios e historial) y guardalo fuera del
+servidor: tu computador, Drive, donde sea. Conviene hacerlo una vez por semana,
+y siempre antes de una actualizacion grande.
 
 Para volver atras, en esa misma pantalla esta *Restaurar un respaldo*: subes el
-archivo y el CRM reemplaza todo por lo que traiga. Antes de hacerlo guarda solo
-una copia de lo que habia, por si te equivocas de archivo.
+archivo y el CRM reemplaza todo por lo que traiga. **Descarga un respaldo antes
+de restaurar**, por si subes el archivo equivocado.
+
+Los respaldos viejos en formato `.db` ya no sirven: eran de cuando la base era
+SQLite.
 
 ### Segunda red: exportar e importar contactos
 
@@ -133,7 +146,7 @@ a su columna del pipeline. Los que ya existen se actualizan, no se duplican.
 
 **No reemplaza al respaldo.** El Excel solo lleva los datos del formulario y la
 etapa; las visitas agendadas, el historico de gestiones, los usuarios y los
-registros solo vuelven con el respaldo de `crm.db`.
+registros solo vuelven con el respaldo JSON.
 
 ---
 
@@ -148,7 +161,7 @@ restablecer la clave al otro.
 
 **Si ya te quedaste por fuera**, desde el panel del hosting:
 
-1. `Variables` -> agrega **`CRM_RECOVERY_USER`** (por ejemplo `respaldo`) y
+1. `Variables` → agrega **`CRM_RECOVERY_USER`** (por ejemplo `respaldo`) y
    **`CRM_RECOVERY_PASSWORD`** con una clave que elijas tu.
 2. El servicio se reinicia solo. Ese usuario queda activo como super
    administrador.

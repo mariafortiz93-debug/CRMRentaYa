@@ -26,15 +26,15 @@ export async function POST() {
   }
 
   // Gather data
-  const allContacts = db.select().from(contacts).all();
-  const allDeals = db.select().from(deals).all();
-  const stages = db
+  const allContacts = (await db.select().from(contacts));
+  const allDeals = (await db.select().from(deals));
+  const stages = (await db
     .select()
     .from(pipelineStages)
     .orderBy(asc(pipelineStages.order))
-    .all();
+    );
 
-  const pendingActivities = db
+  const pendingActivities = (await db
     .select({
       id: activities.id,
       type: activities.type,
@@ -45,7 +45,7 @@ export async function POST() {
     .from(activities)
     .leftJoin(contacts, eq(activities.contactId, contacts.id))
     .where(isNull(activities.completedAt))
-    .all();
+    );
 
   const now = Math.floor(Date.now() / 1000);
   const overdue = pendingActivities.filter(

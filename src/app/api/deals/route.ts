@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { deals, contacts, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export async function GET() {
-  const results = db
+  const results = (await db
     .select({
       id: deals.id,
       title: deals.title,
@@ -28,7 +29,7 @@ export async function GET() {
     .leftJoin(contacts, eq(deals.contactId, contacts.id))
     .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
     .orderBy(desc(deals.createdAt))
-    .all();
+    );
 
   return NextResponse.json(results);
 }
@@ -52,12 +53,12 @@ export async function POST(request: NextRequest) {
   // Get first stage if none provided
   let finalStageId = stageId;
   if (!finalStageId) {
-    const firstStage = db
+    const firstStage = (await one(db
       .select()
       .from(pipelineStages)
       .orderBy(pipelineStages.order)
       .limit(1)
-      .get();
+      ));
     finalStageId = firstStage?.id;
   }
 
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const now = new Date();
-    const result = db
+    const result = (await oneOrFail(db
       .insert(deals)
       .values({
         title,
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
         updatedAt: now,
       })
       .returning()
-      .get();
+      ));
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

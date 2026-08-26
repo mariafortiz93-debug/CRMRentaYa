@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
+import { one } from "@/db/one";
 import { users } from "@/db/schema";
 import {
   SESSION_COOKIE,
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const row = db.select().from(users).where(eq(users.username, username)).get();
+  const row = (await one(db.select().from(users).where(eq(users.username, username))));
 
   if (!row || !verifyPassword(password, row.passwordHash)) {
     return NextResponse.json({ error: BAD_CREDENTIALS }, { status: 401 });
@@ -52,10 +53,10 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date();
-  db.update(users)
+  (await db.update(users)
     .set({ lastLoginAt: now })
     .where(eq(users.id, row.id))
-    .run();
+    );
 
   const user = toPublicUser({ ...row, lastLoginAt: now });
   logAction(user, {

@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { one } from "@/db/one";
 import { deals, contacts, activities, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -19,27 +20,27 @@ export default async function DealDetailPage({
 }) {
   const { id } = await params;
 
-  const deal = db.select().from(deals).where(eq(deals.id, id)).get();
+  const deal = (await one(db.select().from(deals).where(eq(deals.id, id))));
   if (!deal) notFound();
 
-  const contact = db
+  const contact = (await one(db
     .select()
     .from(contacts)
     .where(eq(contacts.id, deal.contactId))
-    .get();
+    ));
 
-  const stage = db
+  const stage = (await one(db
     .select()
     .from(pipelineStages)
     .where(eq(pipelineStages.id, deal.stageId))
-    .get();
+    ));
 
-  const dealActivities = db
+  const dealActivities = (await db
     .select()
     .from(activities)
     .where(eq(activities.dealId, id))
     .orderBy(desc(activities.createdAt))
-    .all();
+    );
 
   return (
     <div className="space-y-6">

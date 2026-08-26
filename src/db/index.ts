@@ -1,200 +1,50 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
-import { ensurePipelineStages } from "./stages";
-import { ensureSuperAdmin, ensureRecoveryAdmin } from "./users";
-import { dbPath, ensureDataDir } from "./paths";
-
-// La carpeta debe existir antes de abrir la base. Ver `paths.ts`: en produccion
-// tiene que ser un disco persistente, o cada despliegue empieza en blanco.
-ensureDataDir();
-const DB_PATH = dbPath();
-
-function createDatabase(): Database.Database {
-  const db = new Database(DB_PATH, { timeout: 15000 });
-
-  // Set pragmas individually with error handling
-  try {
-    db.pragma("journal_mode = WAL");
-  } catch {
-    // WAL mode might already be set by another process
-  }
-
-  try {
-    db.pragma("busy_timeout = 15000");
-  } catch {
-    // Ignore if can't set
-  }
-
-  try {
-    db.pragma("foreign_keys = ON");
-  } catch {
-    // Ignore
-  }
-
-  return db;
-}
-
-function initTables(db: Database.Database): void {
-  // Each CREATE TABLE is its own statement to minimize lock time
-  const tables = [
-    `CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT NOT NULL,
-      name TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'asesor',
-      permissions TEXT NOT NULL DEFAULT '[]',
-      active INTEGER NOT NULL DEFAULT 1,
-      must_change_password INTEGER NOT NULL DEFAULT 0,
-      last_login_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
-    `CREATE TABLE IF NOT EXISTS audit_logs (
-      id TEXT PRIMARY KEY,
-      user_id TEXT,
-      user_name TEXT NOT NULL,
-      action TEXT NOT NULL,
-      entity TEXT NOT NULL,
-      entity_id TEXT,
-      entity_label TEXT,
-      detail TEXT,
-      created_at INTEGER NOT NULL
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)`,
-    `CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)`,
-    `CREATE TABLE IF NOT EXISTS pipeline_stages (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      "order" INTEGER NOT NULL,
-      color TEXT NOT NULL DEFAULT '#64748b',
-      is_won INTEGER NOT NULL DEFAULT 0,
-      is_lost INTEGER NOT NULL DEFAULT 0,
-      next_action TEXT
-    )`,
-    `CREATE TABLE IF NOT EXISTS contacts (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      stage_id TEXT REFERENCES pipeline_stages(id),
-      phone TEXT,
-      phone2 TEXT,
-      address TEXT,
-      city TEXT,
-      neighborhood TEXT,
-      identification_number TEXT,
-      expedition_city TEXT,
-      companion_name TEXT,
-      motorcycle_interest TEXT,
-      company TEXT,
-      source TEXT NOT NULL DEFAULT 'otro',
-      score INTEGER NOT NULL DEFAULT 0,
-      notes TEXT,
-      contact_method TEXT,
-      plan TEXT,
-      classification TEXT,
-      classification_detail TEXT,
-      classification_date INTEGER,
-      visit_result TEXT,
-      visit_result_date INTEGER,
-      visit_result_note TEXT,
-      stage_changed_at INTEGER,
-      approved_contacted_at INTEGER,
-      approved_contact_method TEXT,
-      procedure_start_date INTEGER,
-      dealership_announced_at INTEGER,
-      dealership_visited_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS management_logs (
-      id TEXT PRIMARY KEY,
-      contact_id TEXT NOT NULL REFERENCES contacts(id),
-      method TEXT NOT NULL,
-      outcome TEXT NOT NULL,
-      promised_date INTEGER,
-      reason TEXT,
-      reason_detail TEXT,
-      note TEXT,
-      created_at INTEGER NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS visits (
-      id TEXT PRIMARY KEY,
-      contact_id TEXT NOT NULL REFERENCES contacts(id),
-      visitador TEXT NOT NULL,
-      neighborhood TEXT,
-      scheduled_at INTEGER NOT NULL,
-      created_at INTEGER NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS deals (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      value INTEGER NOT NULL DEFAULT 0,
-      stage_id TEXT NOT NULL REFERENCES pipeline_stages(id),
-      contact_id TEXT NOT NULL REFERENCES contacts(id),
-      expected_close INTEGER,
-      probability INTEGER NOT NULL DEFAULT 0,
-      notes TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS activities (
-      id TEXT PRIMARY KEY,
-      type TEXT NOT NULL,
-      description TEXT NOT NULL,
-      contact_id TEXT NOT NULL REFERENCES contacts(id),
-      deal_id TEXT REFERENCES deals(id),
-      scheduled_at INTEGER,
-      completed_at INTEGER,
-      created_at INTEGER NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS crm_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )`,
-  ];
-
-  for (const sql of tables) {
-    try {
-      db.exec(sql);
-    } catch {
-      // Table might already exist or DB is locked - safe to continue
-    }
-  }
-}
-
-const sqlite = createDatabase();
-initTables(sqlite);
-try {
-  // Repara duplicados y alinea las etapas con crm-config.json. Es idempotente
-  // y esta protegida por un indice unico, asi que varios workers arrancando a
-  // la vez no pueden dejar etapas repetidas.
-  ensurePipelineStages(sqlite);
-} catch {
-  // Si otro worker la esta ejecutando, no bloqueamos el arranque.
-}
-try {
-  // Crea el super administrador la primera vez. Si ya existe, no toca nada:
-  // nunca pisa una clave que ya se haya cambiado desde el CRM.
-  ensureSuperAdmin(sqlite);
-} catch {
-  // Igual que arriba: no bloqueamos el arranque por una carrera entre workers.
-}
-try {
-  // Llave de repuesto: solo hace algo si estan puestas las variables
-  // CRM_RECOVERY_USER y CRM_RECOVERY_PASSWORD en el panel del hosting.
-  ensureRecoveryAdmin(sqlite);
-} catch {
-  // Nunca puede impedir que el CRM arranque.
-}
-
-export const db = drizzle(sqlite, { schema });
+import { databaseUrl, sslOption } from "./paths";
 
 /**
- * La conexion cruda de better-sqlite3.
+ * Conexion a PostgreSQL.
  *
- * Solo la usan los respaldos, que necesitan operaciones que Drizzle no expone:
- * copiar la base completa (`.backup()`) y pegar otra encima (`ATTACH`).
+ * Las tablas y la siembra (etapas y super administrador) **no se hacen aqui**:
+ * las hace `scripts/init.ts`, que corre una sola vez al arrancar el contenedor
+ * (`CMD` del Dockerfile) y en local con `npm run init`. Antes se hacian al
+ * importar este archivo, y como Next levanta varios procesos, todos competian
+ * por sembrar lo mismo: asi aparecieron las etapas duplicadas.
+ *
+ * El grupo de conexiones se guarda en `globalThis` porque en desarrollo Next
+ * recarga los modulos en cada cambio, y sin esto cada recarga abriria un grupo
+ * nuevo hasta agotar las conexiones que permite Postgres.
  */
-export const rawDb = sqlite;
+
+const globalForDb = globalThis as unknown as { crmPool?: Pool };
+
+function createPool(): Pool {
+  const url = databaseUrl();
+  return new Pool({
+    connectionString: url,
+    ssl: sslOption(url),
+    // Railway limita las conexiones; el CRM es para un equipo pequeno.
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 15_000,
+  });
+}
+
+export const pool: Pool = globalForDb.crmPool ?? createPool();
+if (!globalForDb.crmPool) globalForDb.crmPool = pool;
+
+// Un error en una conexion inactiva no puede tumbar el proceso.
+pool.on("error", (err) => {
+  console.error("[CRM] Error en una conexion inactiva de Postgres:", err.message);
+});
+
+export const db = drizzle(pool, { schema });
+
+/**
+ * El grupo de conexiones crudo.
+ *
+ * Lo usan los respaldos, que recorren las tablas por nombre en vez de por el
+ * esquema de Drizzle.
+ */
+export const rawDb = pool;

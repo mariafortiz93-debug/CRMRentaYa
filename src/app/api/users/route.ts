@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { users } from "@/db/schema";
 import {
   hashPassword,
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
   const auth = await requireSuperAdmin(request);
   if (!auth.ok) return auth.error;
 
-  const rows = db.select().from(users).orderBy(asc(users.name)).all();
+  const rows = (await db.select().from(users).orderBy(asc(users.name)));
   return NextResponse.json(rows.map(toPublicUser));
 }
 
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: passwordError }, { status: 400 });
   }
 
-  const taken = db.select().from(users).where(eq(users.username, username)).get();
+  const taken = (await one(db.select().from(users).where(eq(users.username, username))));
   if (taken) {
     return NextResponse.json(
       { error: `El usuario "${username}" ya existe` },
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
       : sanitizePermissions(body.permissions);
 
   const now = new Date();
-  const created = db
+  const created = (await oneOrFail(db
     .insert(users)
     .values({
       username,
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
       updatedAt: now,
     })
     .returning()
-    .get();
+    ));
 
   logAction(auth.user, {
     action: "crear",

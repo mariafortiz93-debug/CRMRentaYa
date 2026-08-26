@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { visits, contacts, pipelineStages } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { requirePermission } from "@/lib/session";
@@ -14,7 +15,7 @@ function formatVisitDate(date: Date): string {
 }
 
 export async function GET() {
-  const rows = db
+  const rows = (await db
     .select({
       id: visits.id,
       contactId: visits.contactId,
@@ -28,7 +29,7 @@ export async function GET() {
     .from(visits)
     .leftJoin(contacts, eq(visits.contactId, contacts.id))
     .orderBy(asc(visits.scheduledAt))
-    .all();
+    );
 
   return NextResponse.json(rows);
 }
@@ -53,14 +54,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const contact = db.select().from(contacts).where(eq(contacts.id, contactId)).get();
+  const contact = (await one(db.select().from(contacts).where(eq(contacts.id, contactId))));
   if (!contact) {
     return NextResponse.json({ error: "Contacto no encontrado" }, { status: 404 });
   }
 
   try {
     const now = new Date();
-    const visit = db
+    const visit = (await oneOrFail(db
       .insert(visits)
       .values({
         contactId,
@@ -70,20 +71,20 @@ export async function POST(request: NextRequest) {
         createdAt: now,
       })
       .returning()
-      .get();
+      ));
 
     // Move the contact to the "Visita" stage automatically.
-    const visitaStage = db
+    const visitaStage = (await db
       .select()
       .from(pipelineStages)
-      .all()
+      )
       .find((s) => s.name.toLowerCase() === "visita");
 
     if (visitaStage) {
-      db.update(contacts)
+      (await db.update(contacts)
         .set({ stageId: visitaStage.id, updatedAt: now })
         .where(eq(contacts.id, contactId))
-        .run();
+        );
     }
 
     logAction(auth.user, {

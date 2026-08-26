@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { activities, contacts } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { requirePermission } from "@/lib/session";
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     query = query.where(eq(activities.dealId, dealId)) as typeof query;
   }
 
-  const results = query.orderBy(desc(activities.createdAt)).all();
+  const results = (await query.orderBy(desc(activities.createdAt)));
   return NextResponse.json(results);
 }
 
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = db
+    const result = (await oneOrFail(db
       .insert(activities)
       .values({
         type,
@@ -71,13 +72,13 @@ export async function POST(request: NextRequest) {
         createdAt: new Date(),
       })
       .returning()
-      .get();
+      ));
 
-    const contact = db
+    const contact = (await one(db
       .select({ name: contacts.name })
       .from(contacts)
       .where(eq(contacts.id, contactId))
-      .get();
+      ));
 
     logAction(auth.user, {
       action: "crear",

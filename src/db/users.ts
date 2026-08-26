@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Pool } from "pg";
 import crypto from "crypto";
 import { hashPassword } from "../lib/password";
 import { ROLE_PRESETS } from "../lib/permissions";
@@ -25,12 +25,12 @@ function readEnv(name: string): string | undefined {
   return env[name];
 }
 
-export function ensureSuperAdmin(db: Database.Database): void {
-  const existing = db
-    .prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'super_admin'")
-    .get() as { n: number };
+export async function ensureSuperAdmin(pool: Pool): Promise<void> {
+  const existing = await pool.query<{ n: string }>(
+    "SELECT COUNT(*) AS n FROM users WHERE role = 'super_admin'"
+  );
 
-  if (existing.n > 0) return;
+  if (Number(existing.rows[0].n) > 0) return;
 
   const username = (readEnv("CRM_ADMIN_USER") || DEFAULT_ADMIN_USERNAME)
     .trim()
@@ -38,37 +38,39 @@ export function ensureSuperAdmin(db: Database.Database): void {
   const password = readEnv("CRM_ADMIN_PASSWORD") || DEFAULT_ADMIN_PASSWORD;
   const name = readEnv("CRM_ADMIN_NAME") || DEFAULT_ADMIN_NAME;
 
-  // Si ese nombre de usuario ya existe con otro rol, lo ascendemos en vez de
-  // chocar contra el indice unico.
-  const sameName = db
-    .prepare("SELECT id FROM users WHERE username = ?")
-    .get(username) as { id: string } | undefined;
-
-  const now = Date.now();
+  const now = new Date();
   const permissions = JSON.stringify(ROLE_PRESETS.super_admin);
 
-  if (sameName) {
-    db.prepare(
+  // Si ese nombre de usuario ya existe con otro rol, lo ascendemos en vez de
+  // chocar contra el indice unico.
+  const sameName = await pool.query<{ id: string }>(
+    "SELECT id FROM users WHERE username = $1",
+    [username]
+  );
+
+  if (sameName.rows.length > 0) {
+    await pool.query(
       `UPDATE users
-       SET role = 'super_admin', permissions = ?, active = 1, updated_at = ?
-       WHERE id = ?`
-    ).run(permissions, now, sameName.id);
+       SET role = 'super_admin', permissions = $1, active = TRUE, updated_at = $2
+       WHERE id = $3`,
+      [permissions, now, sameName.rows[0].id]
+    );
     return;
   }
 
-  db.prepare(
+  await pool.query(
     `INSERT INTO users
        (id, username, name, password_hash, role, permissions, active,
         must_change_password, last_login_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'super_admin', ?, 1, 1, NULL, ?, ?)`
-  ).run(
-    crypto.randomUUID(),
-    username,
-    name,
-    hashPassword(password),
-    permissions,
-    now,
-    now
+     VALUES ($1, $2, $3, $4, 'super_admin', $5, TRUE, TRUE, NULL, $6, $6)`,
+    [
+      crypto.randomUUID(),
+      username,
+      name,
+      hashPassword(password),
+      permissions,
+      now,
+    ]
   );
 }
 
@@ -93,34 +95,37 @@ export function ensureSuperAdmin(db: Database.Database): void {
  *
  * No degrada ni desactiva a nadie mas: solo agrega o repara ese usuario.
  */
-export function ensureRecoveryAdmin(db: Database.Database): void {
+export async function ensureRecoveryAdmin(pool: Pool): Promise<void> {
   const username = (readEnv("CRM_RECOVERY_USER") || "").trim().toLowerCase();
   const password = readEnv("CRM_RECOVERY_PASSWORD") || "";
   if (!username || !password) return;
 
   const name = readEnv("CRM_RECOVERY_NAME") || "Acceso de emergencia";
-  const now = Date.now();
+  const now = new Date();
   const permissions = JSON.stringify(ROLE_PRESETS.super_admin);
   const hash = hashPassword(password);
 
-  const existing = db
-    .prepare("SELECT id FROM users WHERE username = ?")
-    .get(username) as { id: string } | undefined;
+  const existing = await pool.query<{ id: string }>(
+    "SELECT id FROM users WHERE username = $1",
+    [username]
+  );
 
-  if (existing) {
-    db.prepare(
+  if (existing.rows.length > 0) {
+    await pool.query(
       `UPDATE users
-       SET role = 'super_admin', permissions = ?, active = 1,
-           password_hash = ?, must_change_password = 1, updated_at = ?
-       WHERE id = ?`
-    ).run(permissions, hash, now, existing.id);
+       SET role = 'super_admin', permissions = $1, active = TRUE,
+           password_hash = $2, must_change_password = TRUE, updated_at = $3
+       WHERE id = $4`,
+      [permissions, hash, now, existing.rows[0].id]
+    );
   } else {
-    db.prepare(
+    await pool.query(
       `INSERT INTO users
          (id, username, name, password_hash, role, permissions, active,
           must_change_password, last_login_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'super_admin', ?, 1, 1, NULL, ?, ?)`
-    ).run(crypto.randomUUID(), username, name, hash, permissions, now, now);
+       VALUES ($1, $2, $3, $4, 'super_admin', $5, TRUE, TRUE, NULL, $6, $6)`,
+      [crypto.randomUUID(), username, name, hash, permissions, now]
+    );
   }
 
   // Queda en el log del hosting, nunca la clave: asi se ve que la llave de

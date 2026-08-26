@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { visits, contacts, pipelineStages } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/session";
@@ -29,7 +30,7 @@ export async function PUT(
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const existing = db.select().from(visits).where(eq(visits.id, id)).get();
+  const existing = (await one(db.select().from(visits).where(eq(visits.id, id))));
   if (!existing) {
     return NextResponse.json({ error: "Visita no encontrada" }, { status: 404 });
   }
@@ -39,31 +40,31 @@ export async function PUT(
   if (body.neighborhood !== undefined) updateData.neighborhood = body.neighborhood;
   if (body.scheduledAt !== undefined) updateData.scheduledAt = new Date(body.scheduledAt);
 
-  const result = db
+  const result = (await oneOrFail(db
     .update(visits)
     .set(updateData)
     .where(eq(visits.id, id))
     .returning()
-    .get();
+    ));
 
   // Al reprogramar, dejar el contacto en la etapa "Visita".
-  const visitaStage = db
+  const visitaStage = (await db
     .select()
     .from(pipelineStages)
-    .all()
+    )
     .find((s) => s.name.toLowerCase() === "visita");
   if (visitaStage) {
-    db.update(contacts)
+    (await db.update(contacts)
       .set({ stageId: visitaStage.id, updatedAt: new Date() })
       .where(eq(contacts.id, existing.contactId))
-      .run();
+      );
   }
 
-  const contact = db
+  const contact = (await one(db
     .select({ name: contacts.name })
     .from(contacts)
     .where(eq(contacts.id, existing.contactId))
-    .get();
+    ));
 
   const cambios: string[] = [];
   if (result.visitador !== existing.visitador) {
@@ -98,18 +99,18 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const existing = db.select().from(visits).where(eq(visits.id, id)).get();
+  const existing = (await one(db.select().from(visits).where(eq(visits.id, id))));
   if (!existing) {
     return NextResponse.json({ error: "Visita no encontrada" }, { status: 404 });
   }
 
-  const contact = db
+  const contact = (await one(db
     .select({ name: contacts.name })
     .from(contacts)
     .where(eq(contacts.id, existing.contactId))
-    .get();
+    ));
 
-  db.delete(visits).where(eq(visits.id, id)).run();
+  (await db.delete(visits).where(eq(visits.id, id)));
 
   logAction(auth.user, {
     action: "eliminar",

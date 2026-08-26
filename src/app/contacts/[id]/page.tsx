@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { one } from "@/db/one";
 import { contacts, deals, activities, pipelineStages } from "@/db/schema";
 import { eq, desc, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -13,10 +14,10 @@ export default async function ContactDetailPage({
 }) {
   const { id } = await params;
 
-  const contact = db.select().from(contacts).where(eq(contacts.id, id)).get();
+  const contact = (await one(db.select().from(contacts).where(eq(contacts.id, id))));
   if (!contact) notFound();
 
-  const stages = db
+  const stages = (await db
     .select({
       id: pipelineStages.id,
       name: pipelineStages.name,
@@ -25,9 +26,9 @@ export default async function ContactDetailPage({
     })
     .from(pipelineStages)
     .orderBy(asc(pipelineStages.order))
-    .all();
+    );
 
-  const contactDeals = db
+  const contactDeals = (await db
     .select({
       id: deals.id,
       title: deals.title,
@@ -41,14 +42,14 @@ export default async function ContactDetailPage({
     .from(deals)
     .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
     .where(eq(deals.contactId, id))
-    .all();
+    );
 
-  const contactActivities = db
+  const contactActivities = (await db
     .select()
     .from(activities)
     .where(eq(activities.contactId, id))
     .orderBy(desc(activities.createdAt))
-    .all();
+    );
 
   return (
     <ContactDetailClient

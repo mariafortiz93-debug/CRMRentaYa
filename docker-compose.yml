@@ -1,18 +1,40 @@
 services:
+  # La base de datos es un servicio aparte, igual que en Railway. Ese es
+  # justamente el punto: el contenedor del CRM se puede reemplazar entero sin
+  # que la informacion se vaya con el.
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: crm
+      POSTGRES_DB: crm
+    volumes:
+      - crm-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   crm:
     build: .
     ports:
       - "3000:3000"
-    volumes:
-      # Persist database outside container
-      - ./data:/app/data
-      # Persist user config
-      - ./crm-config.json:/app/crm-config.json
-    # La clave de acceso NO se copia dentro de la imagen (.dockerignore excluye
-    # .env*), asi que se inyecta al arrancar leyendo el archivo local.
-    # Debe existir .env.local con CRM_PASSWORD=... junto a este archivo.
+    depends_on:
+      db:
+        condition: service_healthy
+    # Las claves NO se copian dentro de la imagen (.dockerignore excluye
+    # .env*), asi que se inyectan al arrancar leyendo el archivo local.
+    # Debe existir .env.local junto a este archivo con CRM_SESSION_SECRET.
     env_file:
       - .env.local
     environment:
       - NODE_ENV=production
+      # Pisa lo que diga .env.local: dentro de compose la base es el servicio
+      # "db", no localhost.
+      - DATABASE_URL=postgresql://crm:crm@db:5432/crm
     restart: unless-stopped
+
+volumes:
+  crm-postgres:

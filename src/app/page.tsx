@@ -26,14 +26,14 @@ export default async function DashboardPage({
   const params = await searchParams;
   const range = resolveDateRange(params);
 
-  const everyContact = db.select().from(contacts).all();
+  const everyContact = (await db.select().from(contacts));
   const allContacts = everyContact.filter((c) => inRange(c.createdAt, range));
 
-  const stages = db
+  const stages = (await db
     .select()
     .from(pipelineStages)
     .orderBy(asc(pipelineStages.order))
-    .all();
+    );
 
   const stats: DashboardStats = {
     totalContacts: allContacts.length,
@@ -206,7 +206,7 @@ export default async function DashboardPage({
       approvedAt: c.visitResultDate ? c.visitResultDate.getTime() : null,
     }));
 
-  const recentActivities = db
+  const recentActivities = (await db
     .select({
       id: activities.id,
       type: activities.type,
@@ -218,7 +218,7 @@ export default async function DashboardPage({
     .leftJoin(contacts, eq(activities.contactId, contacts.id))
     .orderBy(desc(activities.createdAt))
     .limit(5)
-    .all();
+    );
 
   const isFirstRun = everyContact.length === 0;
 

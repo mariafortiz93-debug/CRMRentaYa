@@ -48,7 +48,7 @@ export function BackupCard() {
       // servidor y no con la del computador de quien lo descarga.
       const disposition = res.headers.get("Content-Disposition") || "";
       const nombre =
-        /filename="([^"]+)"/.exec(disposition)?.[1] || "crm-respaldo.db";
+        /filename="([^"]+)"/.exec(disposition)?.[1] || "crm-respaldo.json";
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -142,7 +142,7 @@ export function BackupCard() {
             <Input
               ref={inputRef}
               type="file"
-              accept=".db"
+              accept=".json,application/json"
               className="cursor-pointer"
               onChange={(e) => setArchivo(e.target.files?.[0] || null)}
             />

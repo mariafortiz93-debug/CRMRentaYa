@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { users } from "@/db/schema";
 import {
   hashPassword,
@@ -29,11 +30,11 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const existing = db
+  const existing = (await one(db
     .select()
     .from(users)
     .where(eq(users.id, auth.user.id))
-    .get();
+    ));
 
   if (!existing) {
     return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
@@ -61,11 +62,11 @@ export async function PUT(request: NextRequest) {
     if (error) return NextResponse.json({ error }, { status: 400 });
 
     if (username !== existing.username) {
-      const taken = db
+      const taken = (await one(db
         .select({ id: users.id })
         .from(users)
         .where(eq(users.username, username))
-        .get();
+        ));
       if (taken) {
         return NextResponse.json(
           { error: `El usuario "${username}" ya existe` },
@@ -106,12 +107,12 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(toPublicUser(existing));
   }
 
-  const updated = db
+  const updated = (await oneOrFail(db
     .update(users)
     .set(updateData)
     .where(eq(users.id, existing.id))
     .returning()
-    .get();
+    ));
 
   logAction(toPublicUser(updated), {
     action: "editar",

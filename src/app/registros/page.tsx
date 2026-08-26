@@ -57,7 +57,7 @@ export default async function RegistrosPage({
     );
   }
 
-  const report = fetchAuditReport(params);
+  const report = await fetchAuditReport(params);
 
   // Las fechas se pasan como texto para que los componentes del navegador las
   // reciban ya listas para mostrar.

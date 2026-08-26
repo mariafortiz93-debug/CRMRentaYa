@@ -47,23 +47,31 @@ export interface AuditInput {
 /** Autor de la accion. Acepta null para los casos sin sesion (login fallido). */
 type Author = Pick<SessionUser, "id" | "name"> | null;
 
+/**
+ * No devuelve promesa a proposito: quien la llama **no espera**.
+ *
+ * Con SQLite la escritura era inmediata; con Postgres va por red. Si las
+ * rutas tuvieran que esperar el historial, cada movimiento del CRM seria mas
+ * lento por algo que es secundario. La regla se mantiene: **registrar nunca
+ * puede tumbar la operacion real**, asi que un fallo al guardar la linea del
+ * historial se ignora, igual que antes.
+ */
 export function logAction(author: Author, input: AuditInput): void {
-  try {
-    db.insert(auditLogs)
-      .values({
-        userId: author?.id ?? null,
-        userName: author?.name ?? "Desconocido",
-        action: input.action,
-        entity: input.entity,
-        entityId: input.entityId ?? null,
-        entityLabel: input.entityLabel ?? null,
-        detail: input.detail ?? null,
-        createdAt: new Date(),
-      })
-      .run();
-  } catch {
-    // El historial es secundario: nunca debe romper la operacion del usuario.
-  }
+  void db
+    .insert(auditLogs)
+    .values({
+      userId: author?.id ?? null,
+      userName: author?.name ?? "Desconocido",
+      action: input.action,
+      entity: input.entity,
+      entityId: input.entityId ?? null,
+      entityLabel: input.entityLabel ?? null,
+      detail: input.detail ?? null,
+      createdAt: new Date(),
+    })
+    .catch((error) => {
+      console.error("[CRM] No se pudo guardar el historial:", error?.message);
+    });
 }
 
 /**

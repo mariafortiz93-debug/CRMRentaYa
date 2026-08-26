@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import {
   contacts,
   deals,
@@ -43,11 +44,11 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const contact = db
+  const contact = (await one(db
     .select()
     .from(contacts)
     .where(eq(contacts.id, id))
-    .get();
+    ));
 
   if (!contact) {
     return NextResponse.json(
@@ -56,17 +57,17 @@ export async function GET(
     );
   }
 
-  const contactDeals = db
+  const contactDeals = (await db
     .select()
     .from(deals)
     .where(eq(deals.contactId, id))
-    .all();
+    );
 
-  const contactActivities = db
+  const contactActivities = (await db
     .select()
     .from(activities)
     .where(eq(activities.contactId, id))
-    .all();
+    );
 
   return NextResponse.json({
     ...contact,
@@ -91,11 +92,11 @@ export async function PUT(
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const existing = db
+  const existing = (await one(db
     .select()
     .from(contacts)
     .where(eq(contacts.id, id))
-    .get();
+    ));
 
   if (!existing) {
     return NextResponse.json(
@@ -154,22 +155,22 @@ export async function PUT(
   if (body.dealershipVisited !== undefined)
     updateData.dealershipVisitedAt = body.dealershipVisited ? new Date() : null;
 
-  const result = db
+  const result = (await oneOrFail(db
     .update(contacts)
     .set(updateData)
     .where(eq(contacts.id, id))
     .returning()
-    .get();
+    ));
 
   // El cambio de etapa se describe aparte, con el nombre de la etapa y no el id.
   const movedStage =
     updateData.stageId !== undefined && updateData.stageId !== existing.stageId;
   if (movedStage) {
-    const stage = db
+    const stage = (await one(db
       .select({ name: pipelineStages.name })
       .from(pipelineStages)
       .where(eq(pipelineStages.id, String(updateData.stageId)))
-      .get();
+      ));
     logAction(auth.user, {
       action: "mover",
       entity: "contacto",
@@ -202,11 +203,11 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const existing = db
+  const existing = (await one(db
     .select()
     .from(contacts)
     .where(eq(contacts.id, id))
-    .get();
+    ));
 
   if (!existing) {
     return NextResponse.json(
@@ -215,12 +216,12 @@ export async function DELETE(
     );
   }
 
-  // Borrar primero todo lo que referencia al contacto (claves foraneas).
-  db.delete(activities).where(eq(activities.contactId, id)).run();
-  db.delete(managementLogs).where(eq(managementLogs.contactId, id)).run();
-  db.delete(visits).where(eq(visits.contactId, id)).run();
-  db.delete(deals).where(eq(deals.contactId, id)).run();
-  db.delete(contacts).where(eq(contacts.id, id)).run();
+  (await // Borrar primero todo lo que referencia al contacto (claves foraneas).
+  db.delete(activities).where(eq(activities.contactId, id)));
+  (await db.delete(managementLogs).where(eq(managementLogs.contactId, id)));
+  (await db.delete(visits).where(eq(visits.contactId, id)));
+  (await db.delete(deals).where(eq(deals.contactId, id)));
+  (await db.delete(contacts).where(eq(contacts.id, id)));
 
   // `audit_logs` no referencia a `contacts`, asi que el historial de este
   // cliente sigue en Registros aunque el contacto ya no exista.

@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { PoolClient, Pool } from "pg";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
@@ -60,60 +60,50 @@ function readConfiguredStages(): StageDef[] {
   return FALLBACK_STAGES;
 }
 
+
 /** Apunta a `keepId` todo lo que referenciaba a `dropIds`, y las borra. */
-function mergeDuplicates(
-  db: Database.Database,
+async function mergeDuplicates(
+  client: PoolClient,
   keepId: string,
   dropIds: string[]
-): void {
+): Promise<void> {
   for (const dropId of dropIds) {
     for (const [table, column] of [
       ["contacts", "stage_id"],
       ["deals", "stage_id"],
     ] as const) {
-      try {
-        db.prepare(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ?`).run(
-          keepId,
-          dropId
-        );
-      } catch {
-        // La tabla puede no existir todavia.
-      }
+      await client.query(
+        `UPDATE ${table} SET ${column} = $1 WHERE ${column} = $2`,
+        [keepId, dropId]
+      );
     }
-    db.prepare("DELETE FROM pipeline_stages WHERE id = ?").run(dropId);
+    await client.query("DELETE FROM pipeline_stages WHERE id = $1", [dropId]);
   }
 }
 
-export function ensurePipelineStages(db: Database.Database): void {
+export async function ensurePipelineStages(pool: Pool): Promise<void> {
   const stages = readConfiguredStages();
+  const client = await pool.connect();
 
-  const run = db.transaction(() => {
+  try {
+    await client.query("BEGIN");
+
     // 1. Unir etapas repetidas por nombre, conservando la primera.
-    const existing = db
-      .prepare('SELECT id, name FROM pipeline_stages ORDER BY "order", rowid')
-      .all() as Array<{ id: string; name: string }>;
+    const existing = await client.query<{ id: string; name: string }>(
+      'SELECT id, name FROM pipeline_stages ORDER BY "order"'
+    );
 
     const byName = new Map<string, string[]>();
-    for (const row of existing) {
+    for (const row of existing.rows) {
       const list = byName.get(row.name) || [];
       list.push(row.id);
       byName.set(row.name, list);
     }
     for (const [, ids] of byName) {
-      if (ids.length > 1) mergeDuplicates(db, ids[0], ids.slice(1));
+      if (ids.length > 1) await mergeDuplicates(client, ids[0], ids.slice(1));
     }
 
     // 2. Crear las que falten y alinear el resto con la configuracion.
-    const insert = db.prepare(
-      `INSERT INTO pipeline_stages (id, name, "order", color, is_won, is_lost, next_action)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    );
-    const update = db.prepare(
-      `UPDATE pipeline_stages
-       SET "order" = ?, color = ?, is_won = ?, is_lost = ?, next_action = ?
-       WHERE id = ?`
-    );
-
     const configured = new Set<string>();
     for (const stage of stages) {
       configured.add(stage.name);
@@ -121,13 +111,26 @@ export function ensurePipelineStages(db: Database.Database): void {
       const args = [
         stage.order,
         stage.color,
-        stage.isWon ? 1 : 0,
-        stage.isLost ? 1 : 0,
+        stage.isWon,
+        stage.isLost,
         stage.nextAction ?? null,
-      ] as const;
+      ];
 
-      if (current) update.run(...args, current);
-      else insert.run(crypto.randomUUID(), stage.name, ...args);
+      if (current) {
+        await client.query(
+          `UPDATE pipeline_stages
+           SET "order" = $1, color = $2, is_won = $3, is_lost = $4, next_action = $5
+           WHERE id = $6`,
+          [...args, current]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO pipeline_stages (id, name, "order", color, is_won, is_lost, next_action)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT DO NOTHING`,
+          [crypto.randomUUID(), stage.name, ...args]
+        );
+      }
     }
 
     // 3. Etapas sobrantes de la plantilla: se borran si nadie las usa. Si
@@ -138,28 +141,25 @@ export function ensurePipelineStages(db: Database.Database): void {
     for (const [name, ids] of byName) {
       if (configured.has(name)) continue;
       const id = ids[0];
-      const used = db
-        .prepare("SELECT COUNT(*) AS n FROM contacts WHERE stage_id = ?")
-        .get(id) as { n: number };
-      if (used.n === 0) {
-        db.prepare("DELETE FROM pipeline_stages WHERE id = ?").run(id);
+      const used = await client.query<{ n: string }>(
+        "SELECT COUNT(*) AS n FROM contacts WHERE stage_id = $1",
+        [id]
+      );
+      if (Number(used.rows[0].n) === 0) {
+        await client.query("DELETE FROM pipeline_stages WHERE id = $1", [id]);
       } else {
-        db.prepare('UPDATE pipeline_stages SET "order" = ? WHERE id = ?').run(
-          lastOrder + extra++,
-          id
+        await client.query(
+          'UPDATE pipeline_stages SET "order" = $1 WHERE id = $2',
+          [lastOrder + extra++, id]
         );
       }
     }
-  });
 
-  run();
-
-  // 4. Con la tabla ya limpia, impedir que se vuelvan a duplicar.
-  try {
-    db.exec(
-      "CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_stages_name ON pipeline_stages(name)"
-    );
-  } catch {
-    // Si quedara algun duplicado imposible de unir, no bloqueamos el arranque.
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
   }
 }

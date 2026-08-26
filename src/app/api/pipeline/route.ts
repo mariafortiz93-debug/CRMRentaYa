@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { pipelineStages, contacts } from "@/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import { requirePermission } from "@/lib/session";
 import { logAction } from "@/lib/audit";
 
 export async function GET() {
-  const stages = db
+  const stages = (await db
     .select()
     .from(pipelineStages)
     .orderBy(asc(pipelineStages.order))
-    .all();
+    );
 
-  const allContacts = db
+  const allContacts = (await db
     .select()
     .from(contacts)
     .orderBy(desc(contacts.createdAt))
-    .all();
+    );
 
   const pipeline = stages.map((stage) => ({
     ...stage,
@@ -39,7 +40,7 @@ export async function PUT(request: NextRequest) {
 
   // Move a contact to another stage (drag and drop)
   if (body.contactId && body.stageId) {
-    const existing = db.select().from(contacts).where(eq(contacts.id, body.contactId)).get();
+    const existing = (await one(db.select().from(contacts).where(eq(contacts.id, body.contactId))));
     if (!existing) {
       return NextResponse.json({ error: "Contacto no encontrado" }, { status: 404 });
     }
@@ -49,15 +50,15 @@ export async function PUT(request: NextRequest) {
 
     // Al entrar a "Visita al Concesionario" se registra que el cliente anuncio
     // que iria; sirve para medir cuantos de esos efectivamente asistieron.
-    const target = db
+    const target = (await one(db
       .select()
       .from(pipelineStages)
       .where(eq(pipelineStages.id, body.stageId))
-      .get();
+      ));
     const entersDealership =
       changed && target?.name.toLowerCase() === "visita al concesionario";
 
-    const result = db
+    const result = (await oneOrFail(db
       .update(contacts)
       .set({
         stageId: body.stageId,
@@ -69,14 +70,14 @@ export async function PUT(request: NextRequest) {
       })
       .where(eq(contacts.id, body.contactId))
       .returning()
-      .get();
+      ));
 
     if (changed) {
-      const origin = db
+      const origin = (await one(db
         .select({ name: pipelineStages.name })
         .from(pipelineStages)
         .where(eq(pipelineStages.id, existing.stageId || ""))
-        .get();
+        ));
       logAction(auth.user, {
         action: "mover",
         entity: "contacto",
@@ -103,7 +104,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Delete existing stages (only if no contacts reference them)
-    const existingContacts = db.select().from(contacts).all();
+    const existingContacts = (await db.select().from(contacts));
     if (existingContacts.length > 0) {
       return NextResponse.json(
         {
@@ -114,10 +115,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    db.delete(pipelineStages).run();
+    (await db.delete(pipelineStages));
 
     for (const stage of body.stages) {
-      db.insert(pipelineStages)
+      (await db.insert(pipelineStages)
         .values({
           name: stage.name,
           order: stage.order,
@@ -126,14 +127,14 @@ export async function PUT(request: NextRequest) {
           isLost: stage.isLost || false,
           nextAction: stage.nextAction || null,
         })
-        .run();
+        );
     }
 
-    const updated = db
+    const updated = (await db
       .select()
       .from(pipelineStages)
       .orderBy(asc(pipelineStages.order))
-      .all();
+      );
 
     return NextResponse.json(updated);
   }

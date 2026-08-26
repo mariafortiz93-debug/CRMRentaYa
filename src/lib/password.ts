@@ -2,8 +2,8 @@
  * Guardado y verificacion de claves.
  *
  * Las claves nunca se guardan como texto: se guarda un resumen con scrypt y
- * una sal aleatoria distinta para cada usuario. Aunque alguien se lleve el
- * archivo `crm.db`, no puede leer las claves.
+ * una sal aleatoria distinta para cada usuario. Aunque alguien se lleve un
+ * respaldo completo de la base, no puede leer las claves.
  *
  * Formato guardado: `scrypt$<sal en hex>$<resumen en hex>`
  *

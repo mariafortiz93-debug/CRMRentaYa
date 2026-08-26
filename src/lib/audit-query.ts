@@ -47,7 +47,9 @@ export interface AuditReport {
  */
 const NO_CUENTAN = new Set(["ingreso", "salida"]);
 
-export function fetchAuditReport(params: AuditQueryParams): AuditReport {
+export async function fetchAuditReport(
+  params: AuditQueryParams
+): Promise<AuditReport> {
   const range = resolveDateRange({ from: params.from, to: params.to });
   const limite = Math.min(
     Math.max(params.limit || DEFAULT_AUDIT_LIMIT, 1),
@@ -60,12 +62,12 @@ export function fetchAuditReport(params: AuditQueryParams): AuditReport {
   if (params.userId) filters.push(eq(auditLogs.userId, params.userId));
   if (params.action) filters.push(eq(auditLogs.action, params.action));
 
-  const rows = db
+  const rows = (await db
     .select()
     .from(auditLogs)
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(desc(auditLogs.createdAt))
-    .all();
+    );
 
   // El desempeno se calcula sobre TODAS las filas del periodo, no solo sobre
   // las que caben en la pagina: si no, la grafica cambiaria con el limite.

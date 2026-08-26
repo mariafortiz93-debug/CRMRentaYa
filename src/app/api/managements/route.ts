@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { managementLogs, contacts, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { requirePermission } from "@/lib/session";
@@ -21,17 +22,17 @@ export async function GET(request: NextRequest) {
   const contactId = searchParams.get("contactId");
 
   const rows = contactId
-    ? db
+    ? (await db
         .select()
         .from(managementLogs)
         .where(eq(managementLogs.contactId, contactId))
         .orderBy(desc(managementLogs.createdAt))
-        .all()
-    : db
+        )
+    : (await db
         .select()
         .from(managementLogs)
         .orderBy(desc(managementLogs.createdAt))
-        .all();
+        );
 
   return NextResponse.json(rows);
 }
@@ -57,14 +58,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const contact = db.select().from(contacts).where(eq(contacts.id, contactId)).get();
+  const contact = (await one(db.select().from(contacts).where(eq(contacts.id, contactId))));
   if (!contact) {
     return NextResponse.json({ error: "Contacto no encontrado" }, { status: 404 });
   }
 
   try {
     const now = new Date();
-    const log = db
+    const log = (await oneOrFail(db
       .insert(managementLogs)
       .values({
         contactId,
@@ -77,21 +78,22 @@ export async function POST(request: NextRequest) {
         createdAt: now,
       })
       .returning()
-      .get();
+      ));
 
     // Si el cliente desistio, sale del embudo y pasa a Perdido.
     const perdidoStage =
       reason === "desistio"
-        ? db
+        ? (await db
             .select()
             .from(pipelineStages)
-            .all()
+            )
             .find((s) => s.isLost)
         : null;
 
     // El contacto guarda un resumen de la ultima gestion, para pintarlo en la
     // tarjeta sin tener que consultar el historico.
-    db.update(contacts)
+    await db
+      .update(contacts)
       .set({
         approvedContactedAt: now,
         approvedContactMethod: method,
@@ -101,8 +103,7 @@ export async function POST(request: NextRequest) {
         ...(perdidoStage ? { stageId: perdidoStage.id, stageChangedAt: now } : {}),
         updatedAt: now,
       })
-      .where(eq(contacts.id, contactId))
-      .run();
+      .where(eq(contacts.id, contactId));
 
     const partes = [
       CONTACT_METHOD_CONFIG[method as ContactMethod]?.label || method,

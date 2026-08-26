@@ -83,11 +83,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const stages = db
+  const stages = (await db
     .select()
     .from(pipelineStages)
     .orderBy(asc(pipelineStages.order))
-    .all();
+    );
   const firstStageId = stages[0]?.id ?? null;
   const stageByName = new Map(stages.map((s) => [normalize(s.name), s.id]));
 
@@ -161,13 +161,13 @@ export async function POST(request: NextRequest) {
 
     // Se busca por cedula, y si la fila no la trae, por telefono.
     const candidatos = cedula
-      ? db
+      ? (await db
           .select()
           .from(contacts)
           .where(eq(contacts.identificationNumber, cedula))
-          .all()
+          )
       : phone
-        ? db.select().from(contacts).where(eq(contacts.phone, phone)).all()
+        ? (await db.select().from(contacts).where(eq(contacts.phone, phone)))
         : [];
 
     /**
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (existing) {
-      db.update(contacts)
+      (await db.update(contacts)
         .set({
           ...filled,
           // La etapa solo se cambia si el archivo la trae explicita.
@@ -202,12 +202,12 @@ export async function POST(request: NextRequest) {
           updatedAt: now,
         })
         .where(eq(contacts.id, existing.id))
-        .run();
+        );
       result.actualizados++;
       continue;
     }
 
-    db.insert(contacts)
+    (await db.insert(contacts)
       .values({
         ...filled,
         name,
@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
         createdAt: now,
         updatedAt: now,
       })
-      .run();
+      );
     result.creados++;
   }
 

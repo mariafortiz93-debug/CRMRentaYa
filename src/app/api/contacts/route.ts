@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { contacts, pipelineStages } from "@/db/schema";
 import { eq, like, or, desc, asc } from "drizzle-orm";
 import { requirePermission } from "@/lib/session";
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     query = query.where(eq(contacts.source, source)) as typeof query;
   }
 
-  const results = query.orderBy(desc(contacts.createdAt)).all();
+  const results = (await query.orderBy(desc(contacts.createdAt)));
   return NextResponse.json(results);
 }
 
@@ -74,16 +75,16 @@ export async function POST(request: NextRequest) {
 
     let resolvedStageId = stageId;
     if (!resolvedStageId) {
-      const firstStage = db
+      const firstStage = (await one(db
         .select({ id: pipelineStages.id })
         .from(pipelineStages)
         .orderBy(asc(pipelineStages.order))
         .limit(1)
-        .get();
+        ));
       resolvedStageId = firstStage?.id || null;
     }
 
-    const result = db
+    const result = (await oneOrFail(db
       .insert(contacts)
       .values({
         name,
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
         updatedAt: now,
       })
       .returning()
-      .get();
+      ));
 
     const sourceLabel =
       SOURCE_LABELS[(result.source as LeadSource) || "otro"] || result.source;

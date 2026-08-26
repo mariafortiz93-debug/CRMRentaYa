@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { contacts, activities, crmSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -72,11 +73,11 @@ function extractFields(
 
 export async function POST(request: NextRequest) {
   // Auth check: if a webhook secret is stored, require it in the header
-  const stored = db
+  const stored = (await one(db
     .select()
     .from(crmSettings)
     .where(eq(crmSettings.key, "webhook_secret"))
-    .get();
+    ));
 
   if (stored) {
     const secretHeader = request.headers.get("x-webhook-secret");
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const now = new Date();
-    const contact = db
+    const contact = (await oneOrFail(db
       .insert(contacts)
       .values({
         name: fields.name,
@@ -123,9 +124,9 @@ export async function POST(request: NextRequest) {
         updatedAt: now,
       })
       .returning()
-      .get();
+      ));
 
-    // Log activity for the new lead
+    (await // Log activity for the new lead
     db.insert(activities)
       .values({
         type: "note",
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
         contactId: contact.id,
         createdAt: now,
       })
-      .run();
+      );
 
     return NextResponse.json(
       {

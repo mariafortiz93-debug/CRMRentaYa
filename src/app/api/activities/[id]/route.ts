@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { activities, contacts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/session";
 import { logAction } from "@/lib/audit";
 
 /** Nombre del cliente al que pertenece la actividad, para el historial. */
-function contactName(contactId: string): string | null {
-  const row = db
+async function contactName(contactId: string): Promise<string | null> {
+  const row = (await one(db
     .select({ name: contacts.name })
     .from(contacts)
     .where(eq(contacts.id, contactId))
-    .get();
+    ));
   return row?.name || null;
 }
 
@@ -32,11 +33,11 @@ export async function PUT(
   }
 
   try {
-    const existing = db
+    const existing = (await one(db
       .select()
       .from(activities)
       .where(eq(activities.id, id))
-      .get();
+      ));
 
     if (!existing) {
       return NextResponse.json(
@@ -94,12 +95,12 @@ export async function PUT(
       );
     }
 
-    const result = db
+    const result = (await oneOrFail(db
       .update(activities)
       .set(updateData)
       .where(eq(activities.id, id))
       .returning()
-      .get();
+      ));
 
     const completada =
       updateData.completedAt !== undefined && !existing.completedAt;
@@ -107,7 +108,7 @@ export async function PUT(
       action: "editar",
       entity: "actividad",
       entityId: result.id,
-      entityLabel: contactName(result.contactId),
+      entityLabel: await contactName(result.contactId),
       detail: completada
         ? `Marco como hecha: ${result.description}`
         : `Actualizo la actividad: ${result.description}`,
@@ -132,11 +133,11 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const existing = db
+    const existing = (await one(db
       .select()
       .from(activities)
       .where(eq(activities.id, id))
-      .get();
+      ));
 
     if (!existing) {
       return NextResponse.json(
@@ -145,13 +146,13 @@ export async function DELETE(
       );
     }
 
-    db.delete(activities).where(eq(activities.id, id)).run();
+    (await db.delete(activities).where(eq(activities.id, id)));
 
     logAction(auth.user, {
       action: "eliminar",
       entity: "actividad",
       entityId: id,
-      entityLabel: contactName(existing.contactId),
+      entityLabel: await contactName(existing.contactId),
       detail: `Elimino la actividad: ${existing.description}`,
     });
 

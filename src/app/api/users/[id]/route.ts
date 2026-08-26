@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
+import { one, oneOrFail } from "@/db/one";
 import { users } from "@/db/schema";
 import {
   hashPassword,
@@ -20,8 +21,8 @@ import {
 import { logAction } from "@/lib/audit";
 
 /** Cuantos super administradores activos quedan aparte de `exceptId`. */
-function otherActiveSuperAdmins(exceptId: string): number {
-  const rows = db
+async function otherActiveSuperAdmins(exceptId: string): Promise<number> {
+  const rows = (await db
     .select({ id: users.id })
     .from(users)
     .where(
@@ -31,7 +32,7 @@ function otherActiveSuperAdmins(exceptId: string): number {
         ne(users.id, exceptId)
       )
     )
-    .all();
+    );
   return rows.length;
 }
 
@@ -70,7 +71,7 @@ export async function PUT(
     return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
   }
 
-  const existing = db.select().from(users).where(eq(users.id, id)).get();
+  const existing = (await one(db.select().from(users).where(eq(users.id, id))));
   if (!existing) {
     return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
   }
@@ -97,11 +98,11 @@ export async function PUT(
     if (error) return NextResponse.json({ error }, { status: 400 });
 
     if (username !== existing.username) {
-      const taken = db
+      const taken = (await one(db
         .select({ id: users.id })
         .from(users)
         .where(eq(users.username, username))
-        .get();
+        ));
       if (taken) {
         return NextResponse.json(
           { error: `El usuario "${username}" ya existe` },
@@ -121,7 +122,7 @@ export async function PUT(
     if (
       existing.role === "super_admin" &&
       requestedRole !== "super_admin" &&
-      otherActiveSuperAdmins(id) === 0
+      (await otherActiveSuperAdmins(id)) === 0
     ) {
       return NextResponse.json(
         {
@@ -158,7 +159,7 @@ export async function PUT(
     if (
       !active &&
       existing.role === "super_admin" &&
-      otherActiveSuperAdmins(id) === 0
+      (await otherActiveSuperAdmins(id)) === 0
     ) {
       return NextResponse.json(
         { error: "No puedes desactivar el ultimo super administrador" },
@@ -181,12 +182,12 @@ export async function PUT(
     changes.push("le cambio la clave");
   }
 
-  const updated = db
+  const updated = (await oneOrFail(db
     .update(users)
     .set(updateData)
     .where(eq(users.id, id))
     .returning()
-    .get();
+    ));
 
   if (changes.length > 0) {
     logAction(auth.user, {
@@ -210,7 +211,7 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const existing = db.select().from(users).where(eq(users.id, id)).get();
+  const existing = (await one(db.select().from(users).where(eq(users.id, id))));
   if (!existing) {
     return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
   }
@@ -222,7 +223,7 @@ export async function DELETE(
     );
   }
 
-  if (existing.role === "super_admin" && otherActiveSuperAdmins(id) === 0) {
+  if (existing.role === "super_admin" && (await otherActiveSuperAdmins(id)) === 0) {
     return NextResponse.json(
       { error: "No puedes borrar el ultimo super administrador" },
       { status: 400 }
@@ -231,7 +232,7 @@ export async function DELETE(
 
   // `audit_logs` no tiene clave foranea a `users` a proposito: el historial de
   // lo que hizo esta persona se conserva aunque se borre el usuario.
-  db.delete(users).where(eq(users.id, id)).run();
+  await db.delete(users).where(eq(users.id, id));
 
   logAction(auth.user, {
     action: "eliminar",

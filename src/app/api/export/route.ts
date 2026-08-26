@@ -45,11 +45,11 @@ export async function GET(request: NextRequest) {
     to: searchParams.get("to") || undefined,
   });
 
-  const allContacts = db
+  const allContacts = (await db
     .select()
     .from(contacts)
     .orderBy(desc(contacts.createdAt))
-    .all()
+    )
     .filter((c) => inRange(c.createdAt, range));
 
   /**
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
    */
   if (type === "contacts") {
     const stageNameById = new Map(
-      db.select().from(pipelineStages).all().map((s) => [s.id, s.name])
+      (await db.select().from(pipelineStages)).map((s) => [s.id, s.name])
     );
 
     const headers = [
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
    * "Estado Visita" en la otra plataforma y se vuelve a importar.
    */
   if (type === "visit-states") {
-    const stages = db.select().from(pipelineStages).all();
+    const stages = (await db.select().from(pipelineStages));
     const stageById = new Map(stages.map((s) => [s.id, s]));
 
     // Clientes que ya tienen visita registrada o estan en etapas posteriores.

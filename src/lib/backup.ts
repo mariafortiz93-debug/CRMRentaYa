@@ -1,50 +1,47 @@
 /**
  * Respaldo y restauracion de la base de datos.
  *
- * Toda la informacion del CRM vive en un solo archivo, `crm.db`. Respaldar es
- * copiar ese archivo; restaurar es volver a meter su contenido.
+ * Con SQLite el respaldo era una copia del archivo `crm.db`. Con PostgreSQL la
+ * base es un servicio aparte y no hay archivo que copiar; `pg_dump` tampoco
+ * esta dentro del contenedor. Asi que el respaldo es un **JSON** con el
+ * contenido de todas las tablas: se lee sin herramientas especiales, se puede
+ * revisar a ojo y no depende de la version de Postgres que use el hosting.
  *
- * Restaurar NO reemplaza el archivo en el disco: el servidor lo tiene abierto y
- * cambiarlo por debajo lo corrompe. En vez de eso se engancha el respaldo con
- * `ATTACH` y se copian las filas tabla por tabla dentro de una transaccion, asi
- * que o entra todo o no entra nada.
+ * Restaurar reemplaza TODO, dentro de una sola transaccion: o entra completo o
+ * no entra nada. Si falla a mitad, la base queda como estaba.
  */
 
-import Database from "better-sqlite3";
+import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import crypto from "crypto";
 import { rawDb } from "@/db";
-import { dataDir } from "@/db/paths";
+import { TABLES_IN_DELETE_ORDER } from "@/db/ddl";
 
-/** Las 12 primeras letras de todo archivo SQLite. */
-const SQLITE_MAGIC = "SQLite format 3";
+/** Marca que identifica un respaldo de este CRM. */
+const FORMATO = "crm-renta-ya";
+const VERSION = 1;
 
 /**
- * Tablas que se restauran, en orden de dependencia: primero las que nadie
- * referencia. Al borrar se recorre al reves.
+ * Orden para insertar: primero las tablas de las que dependen las demas.
+ * Al borrar se recorre al reves (hijas primero), porque las claves foraneas
+ * no se pueden desactivar sin permisos de administrador de Postgres.
  */
-const TABLES = [
-  "users",
-  "audit_logs",
-  "crm_settings",
-  "pipeline_stages",
-  "contacts",
-  "deals",
-  "visits",
-  "management_logs",
-  "activities",
-] as const;
+const TABLES_IN_INSERT_ORDER = [...TABLES_IN_DELETE_ORDER].reverse();
 
 /** Tablas sin las cuales el archivo no es un respaldo de este CRM. */
 const REQUIRED_TABLES = ["contacts", "pipeline_stages"];
 
-function tempFile(prefix: string): string {
-  return path.join(os.tmpdir(), `${prefix}-${crypto.randomUUID()}.db`);
+type Row = Record<string, unknown>;
+
+interface BackupFile {
+  formato: string;
+  version: number;
+  fecha: string;
+  tablas: Record<string, Row[]>;
 }
 
-/** Nombre con el que se descarga: `crm-respaldo-2026-08-25.db`. */
+/** Nombre con el que se descarga: `crm-respaldo-2026-08-26.json`. */
 export function backupFileName(): string {
   const d = new Date();
   const stamp = [
@@ -52,149 +49,164 @@ export function backupFileName(): string {
     String(d.getMonth() + 1).padStart(2, "0"),
     String(d.getDate()).padStart(2, "0"),
   ].join("-");
-  return `crm-respaldo-${stamp}.db`;
+  return `crm-respaldo-${stamp}.json`;
 }
 
-/**
- * Copia consistente de la base, aunque haya escrituras en curso.
- *
- * Se usa `.backup()` de better-sqlite3 y no una copia del archivo a mano: en
- * modo WAL los cambios recientes viven en `crm.db-wal`, asi que copiar solo
- * `crm.db` dejaria fuera lo ultimo que se guardo.
- */
-export async function createBackup(): Promise<Buffer> {
-  const target = tempFile("crm-backup");
-  try {
-    await rawDb.backup(target);
-    return fs.readFileSync(target);
-  } finally {
-    try {
-      fs.unlinkSync(target);
-    } catch {
-      // Si no se puede borrar el temporal no pasa nada, lo limpia el sistema.
-    }
+/** Columnas que existen hoy en una tabla. */
+async function columnsOf(table: string): Promise<Set<string>> {
+  const res = await rawDb.query<{ column_name: string }>(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1`,
+    [table]
+  );
+  return new Set(res.rows.map((r) => r.column_name));
+}
+
+/** Lee todas las tablas del CRM. */
+async function dump(): Promise<BackupFile> {
+  const tablas: Record<string, Row[]> = {};
+  for (const table of TABLES_IN_INSERT_ORDER) {
+    const res = await rawDb.query(`SELECT * FROM ${table}`);
+    tablas[table] = res.rows as Row[];
   }
+  return {
+    formato: FORMATO,
+    version: VERSION,
+    fecha: new Date().toISOString(),
+    tablas,
+  };
+}
+
+/** Respaldo completo, listo para descargar. */
+export async function createBackup(): Promise<Buffer> {
+  const data = await dump();
+  return Buffer.from(JSON.stringify(data, null, 2), "utf8");
 }
 
 export interface RestoreResult {
-  /** Cuantas filas quedaron en cada tabla. */
+  ok: true;
+  /** Cuantas filas entraron en cada tabla. */
   filas: Record<string, number>;
-  /** Donde quedo la copia de seguridad de lo que habia antes. */
+  /** Tablas del respaldo que este CRM ya no tiene. */
+  ignoradas: string[];
+  /** Donde quedo la copia de lo que habia antes. */
   copiaPrevia: string;
 }
 
-function columnsOf(db: Database.Database, schema: string, table: string): string[] {
-  const rows = db.prepare(`PRAGMA ${schema}.table_info(${table})`).all() as Array<{
-    name: string;
-  }>;
-  return rows.map((r) => r.name);
-}
+function parseBackup(fileBytes: Buffer): BackupFile {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fileBytes.toString("utf8"));
+  } catch {
+    throw new Error(
+      "El archivo no es un respaldo del CRM (no se pudo leer como JSON)."
+    );
+  }
 
-function tableExists(db: Database.Database, schema: string, table: string): boolean {
-  const row = db
-    .prepare(
-      `SELECT name FROM ${schema}.sqlite_master WHERE type = 'table' AND name = ?`
-    )
-    .get(table);
-  return !!row;
+  const data = parsed as Partial<BackupFile>;
+  if (data?.formato !== FORMATO || typeof data.tablas !== "object" || !data.tablas) {
+    throw new Error(
+      "El archivo no es un respaldo de este CRM. Descarga uno desde " +
+        "Configuracion -> Respaldos y usa ese."
+    );
+  }
+
+  for (const table of REQUIRED_TABLES) {
+    if (!Array.isArray(data.tablas[table])) {
+      throw new Error(
+        `El respaldo esta incompleto: le falta la tabla "${table}".`
+      );
+    }
+  }
+
+  return data as BackupFile;
 }
 
 /**
- * Restaura el contenido de un archivo de respaldo.
+ * Reemplaza el contenido de la base por el del respaldo.
  *
- * Antes de tocar nada guarda una copia de lo que hay ahora, junto a la base,
- * por si el respaldo resulta ser el equivocado.
+ * Solo se copian las columnas que existen **en los dos lados**, para que un
+ * respaldo viejo siga sirviendo aunque despues se hayan agregado campos.
  */
 export async function restoreBackup(fileBytes: Buffer): Promise<RestoreResult> {
-  if (fileBytes.subarray(0, SQLITE_MAGIC.length).toString() !== SQLITE_MAGIC) {
-    throw new Error(
-      "El archivo no es un respaldo del CRM. Debe ser el .db que descargaste desde aqui."
-    );
-  }
+  const data = parseBackup(fileBytes);
 
-  const incoming = tempFile("crm-restore");
-  fs.writeFileSync(incoming, fileBytes);
+  // Copia de lo que hay ahora, por si el archivo subido era el equivocado.
+  // Vive en la carpeta temporal del contenedor: sirve mientras el servidor no
+  // se reinicie, no reemplaza a descargar un respaldo antes de restaurar.
+  const copiaPrevia = path.join(
+    os.tmpdir(),
+    `crm-antes-de-restaurar-${crypto.randomUUID()}.json`
+  );
+  fs.writeFileSync(copiaPrevia, await createBackup());
 
+  const filas: Record<string, number> = {};
+  const ignoradas: string[] = [];
+
+  const client = await rawDb.connect();
   try {
-    // Comprobar que trae lo que debe traer, antes de borrar nada.
-    const check = new Database(incoming, { readonly: true });
-    try {
-      for (const table of REQUIRED_TABLES) {
-        if (!tableExists(check, "main", table)) {
-          throw new Error(
-            `El respaldo no tiene la tabla "${table}". No parece una base de este CRM.`
-          );
-        }
-      }
-    } finally {
-      check.close();
+    await client.query("BEGIN");
+
+    // Borrar hijas primero: las claves foraneas siguen activas.
+    for (const table of TABLES_IN_DELETE_ORDER) {
+      await client.query(`DELETE FROM ${table}`);
     }
 
-    // Copia de lo que hay ahora, por si acaso.
-    const copiaPrevia = path.join(
-      dataDir(),
-      `crm-antes-de-restaurar-${Date.now()}.db`
+    for (const table of TABLES_IN_INSERT_ORDER) {
+      const rows = data.tablas[table];
+      if (!Array.isArray(rows) || rows.length === 0) {
+        filas[table] = 0;
+        continue;
+      }
+
+      const existing = await columnsOf(table);
+      const columns = Object.keys(rows[0]).filter((c) => existing.has(c));
+      if (columns.length === 0) {
+        ignoradas.push(table);
+        filas[table] = 0;
+        continue;
+      }
+
+      // De a 100 filas por sentencia: una por fila seria lentisimo por red.
+      const CHUNK = 100;
+      let inserted = 0;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const chunk = rows.slice(i, i + CHUNK);
+        const values: unknown[] = [];
+        const tuples = chunk.map((row) => {
+          const marks = columns.map((col) => {
+            values.push(row[col] ?? null);
+            return `$${values.length}`;
+          });
+          return `(${marks.join(", ")})`;
+        });
+        await client.query(
+          `INSERT INTO ${table} (${columns.map((c) => `"${c}"`).join(", ")})
+           VALUES ${tuples.join(", ")}`,
+          values
+        );
+        inserted += chunk.length;
+      }
+      filas[table] = inserted;
+    }
+
+    // Tablas del respaldo que este CRM ya no conoce.
+    for (const table of Object.keys(data.tablas)) {
+      if (!TABLES_IN_INSERT_ORDER.includes(table) && !ignoradas.includes(table)) {
+        ignoradas.push(table);
+      }
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw new Error(
+      "No se pudo restaurar; la base quedo como estaba. " +
+        (error instanceof Error ? error.message : "")
     );
-    await rawDb.backup(copiaPrevia);
-
-    // Las claves foraneas se apagan fuera de la transaccion: dentro, el PRAGMA
-    // no tiene efecto. Sin esto el borrado fallaria por el orden de las tablas.
-    rawDb.pragma("foreign_keys = OFF");
-    rawDb.prepare("ATTACH DATABASE ? AS respaldo").run(incoming);
-
-    try {
-      const copiar = rawDb.transaction(() => {
-        for (const table of [...TABLES].reverse()) {
-          if (tableExists(rawDb, "main", table)) {
-            rawDb.prepare(`DELETE FROM main.${table}`).run();
-          }
-        }
-
-        for (const table of TABLES) {
-          if (!tableExists(rawDb, "main", table)) continue;
-          if (!tableExists(rawDb, "respaldo", table)) continue;
-
-          // Solo las columnas que existen en ambos lados, para que un respaldo
-          // viejo siga sirviendo aunque despues se hayan agregado campos.
-          const destino = columnsOf(rawDb, "main", table);
-          const origen = new Set(columnsOf(rawDb, "respaldo", table));
-          const comunes = destino.filter((c) => origen.has(c));
-          if (comunes.length === 0) continue;
-
-          const lista = comunes.map((c) => `"${c}"`).join(", ");
-          rawDb
-            .prepare(
-              `INSERT INTO main.${table} (${lista}) SELECT ${lista} FROM respaldo.${table}`
-            )
-            .run();
-        }
-      });
-
-      copiar();
-
-      const filas: Record<string, number> = {};
-      for (const table of TABLES) {
-        if (!tableExists(rawDb, "main", table)) continue;
-        const row = rawDb
-          .prepare(`SELECT COUNT(*) AS n FROM main.${table}`)
-          .get() as { n: number };
-        filas[table] = row.n;
-      }
-
-      return { filas, copiaPrevia };
-    } finally {
-      try {
-        rawDb.prepare("DETACH DATABASE respaldo").run();
-      } catch {
-        // Si ya se solto, seguimos.
-      }
-      rawDb.pragma("foreign_keys = ON");
-    }
   } finally {
-    try {
-      fs.unlinkSync(incoming);
-    } catch {
-      // Temporal: lo limpia el sistema.
-    }
+    client.release();
   }
+
+  return { ok: true, filas, ignoradas, copiaPrevia };
 }

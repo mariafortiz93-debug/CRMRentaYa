@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
+import { one } from "@/db/one";
 import { contacts, pipelineStages } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { VisitResult } from "@/types";
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const stages = db.select().from(pipelineStages).all();
+  const stages = (await db.select().from(pipelineStages));
   const estadoStage = stages.find(
     (s) => s.name.toLowerCase() === "estado de la visita"
   );
@@ -99,11 +100,11 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const contact = db
+    const contact = (await one(db
       .select()
       .from(contacts)
       .where(eq(contacts.identificationNumber, cedula))
-      .get();
+      ));
 
     if (!contact) {
       result.noEncontrados.push(cedula);
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
 
     const note = noteIdx !== -1 ? (row[noteIdx] || "").trim() : "";
 
-    db.update(contacts)
+    (await db.update(contacts)
       .set({
         visitResult: state,
         visitResultDate: now,
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
         updatedAt: now,
       })
       .where(eq(contacts.id, contact.id))
-      .run();
+      );
 
     result.actualizados++;
   }

@@ -37,14 +37,11 @@ Cartagena (Colombia).
 
 ### Pendientes importantes
 
-1. **Volumen persistente en Railway** — **CONFIRMADO QUE FALTA.** Maria reporto
-   que cada actualizacion deja la plataforma en blanco. La causa no esta en el
-   codigo: el arranque solo crea tablas que falten y nunca borra. Lo que pasa
-   es que `/app/data` es el disco temporal del contenedor, que se rehace en
-   cada despliegue.
-   **Arreglo (solo se puede desde el panel):** Settings → Volumes → New Volume,
-   *Mount path* = `/app/data`. Si Railway obliga a otra ruta, montarlo donde
-   sea y definir la variable `CRM_DATA_DIR` con esa misma ruta.
+1. **Crear el servicio de PostgreSQL en Railway** — sin el, el CRM no arranca.
+   En el panel: `New` → `Database` → `PostgreSQL`, y **conectarlo al servicio
+   del CRM** para que inyecte `DATABASE_URL`. Es el reemplazo definitivo del
+   disco persistente: la base ya no vive dentro del contenedor, asi que los
+   despliegues no la pueden borrar.
 2. **Cambiar la clave del super administrador** — al desplegar se crea solo el
    usuario `maria` con la clave `RentaYa2026*`, que quedo escrita en
    conversaciones. Hay que cambiarla desde *Mis datos* al primer ingreso; el
@@ -220,9 +217,25 @@ Dos decisiones a proposito:
 ## Arquitectura
 
 **Stack**: Next.js 16 (App Router) · React 19 · TypeScript strict ·
-Tailwind CSS v4 · shadcn/ui · SQLite + Drizzle ORM · @dnd-kit
+Tailwind CSS v4 · shadcn/ui · **PostgreSQL** + Drizzle ORM (`node-postgres`) ·
+@dnd-kit
 
 **Alias**: `@/*` → `./src/*`
+
+### Como se consulta la base
+
+Todas las consultas son **asincronas** y devuelven arreglos. No existen
+`.get()`, `.all()` ni `.run()`: eso era de SQLite.
+
+```ts
+const filas   = await db.select().from(contacts);              // varias
+const uno     = await one(db.select().from(contacts).where(...)); // una o undefined
+const creado  = await oneOrFail(db.insert(contacts).values(...).returning());
+await db.update(contacts).set({ ... }).where(...);             // sin resultado
+```
+
+`one()` y `oneOrFail()` estan en `src/db/one.ts`. `oneOrFail` es para INSERT y
+UPDATE con `.returning()`, que por definicion devuelven fila.
 
 ### Directorios
 
@@ -232,8 +245,10 @@ Tailwind CSS v4 · shadcn/ui · SQLite + Drizzle ORM · @dnd-kit
 - `src/components/dashboard/` — KPIs, embudo, graficas
 - `src/components/users/` — dialogo de crear/editar colaborador
 - `src/components/audit/` — grafica de desempeno, filtros y tabla de registros
-- `src/db/` — `schema.ts`, `index.ts` (cliente), `stages.ts` (etapas),
-  `users.ts` (siembra del super administrador)
+- `src/db/` — `schema.ts` (tablas en Drizzle), `ddl.ts` (los CREATE TABLE del
+  arranque), `index.ts` (grupo de conexiones y cliente), `one.ts` (`one` /
+  `oneOrFail`), `paths.ts` (lee `DATABASE_URL`), `stages.ts` (etapas),
+  `users.ts` (super administrador y llave de repuesto)
 - `src/lib/` — `constants.ts` (etiquetas), `dateRange.ts` y toda la capa de
   acceso:
   - `auth.ts` — firma y lectura de la cookie. **Solo Web Crypto**, porque
@@ -356,12 +371,15 @@ persistence directory failed": es la cache de Turbopack. `rm -rf .next`.
 
 ### Al agregar una columna a la base de datos
 
-Hay que tocar **cuatro** sitios o el despliegue se rompe:
+Con PostgreSQL son **dos** sitios (con SQLite eran cuatro):
 
 1. `src/db/schema.ts` (Drizzle)
-2. `src/db/index.ts` (CREATE TABLE del arranque)
-3. `scripts/init.ts` (CREATE TABLE del contenedor)
-4. `ALTER TABLE` sobre la base existente, para no perder datos
+2. La lista `EXTRA_COLUMNS` de `src/db/ddl.ts`
+
+De ahi sale un `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, que Postgres si
+entiende, asi que la columna aparece sola en la base que ya existe y sin
+perder datos. Si la tabla es nueva, va tambien en `TABLES` de ese mismo
+archivo.
 
 ### Al agregar una tabla que referencia contacts
 
@@ -399,6 +417,12 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
   Ademas, **llave de repuesto** para el acceso: `CRM_RECOVERY_USER` y
   `CRM_RECOVERY_PASSWORD` crean un super administrador de emergencia desde el
   panel del hosting.
+- **De SQLite a PostgreSQL** — la base dejo de ser un archivo dentro del
+  contenedor y paso a ser un servicio aparte, que sobrevive a los despliegues
+  por si solo. Cambio el esquema (fechas y booleanos de verdad), las consultas
+  pasaron a ser asincronas (`one()` / `oneOrFail()` en vez de
+  `.get()` / `.all()` / `.run()`) y los respaldos pasaron de copiar `crm.db` a
+  un JSON con todas las tablas.
 
 ### Errores corregidos (no repetirlos)
 
@@ -423,9 +447,11 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
   no la etiqueta. Se veia "asesor" o "__todos__". Hay que pasarle una funcion a
   `SelectValue` que traduzca el valor.
 - **Cada despliegue dejaba el CRM en blanco**: no era un bug del codigo, era
-  que Railway no tenia disco persistente en `/app/data`. Diagnostico util: si
-  se pierden datos al actualizar, **mirar primero el volumen del hosting**, no
-  la siembra ni las migraciones.
+  que la base vivia **dentro del contenedor**, y Railway reemplaza el
+  contenedor entero en cada despliegue. Se intento primero con un disco
+  persistente; al final se cambio a PostgreSQL, que quita el problema de raiz.
+  Regla: **si un dato tiene que sobrevivir al despliegue, no puede vivir
+  dentro del contenedor.**
 - **Comprobar un despliegue buscando texto en el HTML**: no sirve. Las
   pantallas del CRM las dibuja JavaScript, asi que `curl | grep` da falsos
   negativos. Hay que abrirlo en un navegador de verdad.
@@ -456,82 +482,67 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
   Nunca fusionar en silencio.
 
 ---
-
 ## Persistencia y respaldos
 
-**Toda la informacion del CRM esta en un solo archivo: `crm.db`.** Clientes,
-visitas, gestiones, usuarios y el historial. No hay nada mas que guardar:
-`crm-config.json` se regenera desde `public/` en cada arranque.
+La base es un **servicio de PostgreSQL aparte**, fuera del contenedor del CRM.
+`crm-config.json` no se guarda: se regenera desde `public/` en cada arranque.
 
-### Donde vive
+### Por que se cambio de SQLite
 
-`src/db/paths.ts` decide la ruta: `./data` por defecto, o lo que diga
-**`CRM_DATA_DIR`**. Esa variable existe porque el disco persistente de un
-hosting se monta donde diga el panel; si no coincide con `/app/data`, el CRM
-escribiria en el disco temporal del contenedor y **cada despliegue empezaria en
-blanco**. Con la variable basta apuntarlo al disco de verdad.
+Con SQLite todo vivia en un archivo, `crm.db`, **dentro del contenedor**.
+Railway no actualiza el contenedor: lo **reemplaza**, asi que cada despliegue
+se llevaba la base por delante. Maria perdio los datos tres veces.
 
-`scripts/init.ts` deja en el log del hosting la ruta, si la base ya existia y
-cuantas filas hay en cada tabla. Si en produccion la base no existia al
-arrancar, imprime un aviso grande. Asi una perdida de datos se ve el mismo dia
-y no semanas despues.
+La solucion clasica es montar un disco persistente y apuntar el archivo ahi,
+pero depende de escribir bien la ruta en el panel: si no coincide, el CRM
+escribe en el disco temporal y **nadie se entera hasta que los datos ya no
+estan**. Con una base separada no hay ninguna ruta que equivocar.
+
+Regla que queda: **si un dato tiene que sobrevivir al despliegue, no puede
+vivir dentro del contenedor.** Lo mismo vale para archivos subidos, si algun
+dia se agregan.
+
+### Conexion
+
+`src/db/paths.ts` lee **`DATABASE_URL`** (o `CRM_DATABASE_URL`) en tiempo de
+ejecucion. Railway la inyecta sola al conectar el servicio de Postgres al del
+CRM. Sin ella el CRM no arranca, y lo dice con un mensaje claro.
+
+`src/db/index.ts` guarda el grupo de conexiones en `globalThis` porque en
+desarrollo Next recarga los modulos en cada cambio, y sin eso cada recarga
+abriria un grupo nuevo hasta agotar las conexiones que permite Postgres.
+
+`scripts/init.ts` corre al arrancar el contenedor: crea las tablas que falten,
+siembra etapas y super administrador, y deja en el log cuantas filas hay en
+cada tabla. Es el **unico** sitio que siembra; antes se hacia al importar el
+modulo de la base y los varios procesos de Next competian entre si.
 
 ### Respaldos
 
-*Configuracion → Respaldos*, solo para el super administrador:
+*Configuracion → Respaldos*, solo para el super administrador. El archivo es un
+**JSON** (`crm-respaldo-2026-08-26.json`) con el contenido de todas las tablas.
 
-- **Descargar** — usa `.backup()` de better-sqlite3, no una copia del archivo a
-  mano: en modo WAL lo ultimo que se guardo vive en `crm.db-wal`, asi que
-  copiar solo `crm.db` dejaria fuera los cambios recientes.
-- **Restaurar** — **no reemplaza el archivo en disco**: el servidor lo tiene
-  abierto y cambiarlo por debajo lo corrompe. En vez de eso engancha el
-  respaldo con `ATTACH` y copia las filas tabla por tabla dentro de una
-  transaccion (o entra todo o no entra nada). Solo copia las columnas que
-  existen en ambos lados, para que un respaldo viejo siga sirviendo aunque
-  despues se hayan agregado campos. Antes de tocar nada guarda una copia de lo
-  que hay en `data/crm-antes-de-restaurar-<fecha>.db`.
+Es JSON y no un volcado de Postgres porque `pg_dump` no esta dentro del
+contenedor, y porque asi el respaldo se puede abrir y revisar sin herramientas
+especiales ni depender de la version de Postgres del hosting.
 
-Las claves foraneas se apagan **fuera** de la transaccion: dentro, el PRAGMA no
-tiene efecto y el borrado fallaria por el orden de las tablas.
+**Restaurar reemplaza todo**, dentro de una sola transaccion: o entra completo
+o no entra nada. Detalles que importan:
 
-### Importar contactos desde Excel
+- Se borra en orden de hijas a padres y se inserta al reves. En Postgres las
+  claves foraneas **no se pueden desactivar** sin permisos de administrador,
+  asi que el orden es la unica forma.
+- Solo se copian las columnas que existen **en los dos lados**, para que un
+  respaldo viejo siga sirviendo aunque despues se hayan agregado campos.
+- Se insertan 100 filas por sentencia: una por fila seria lentisimo por red.
+- Antes de tocar nada se guarda una copia de lo que habia en la carpeta
+  temporal del contenedor. **No reemplaza a descargar un respaldo antes de
+  restaurar**: esa copia se pierde al reiniciar el servidor.
 
-*Contactos → Importar*. **No reemplaza al respaldo**: el CSV solo lleva los
-campos del formulario y la etapa. Visitas, gestiones, historial y usuarios solo
-vuelven con el respaldo de `crm.db`.
+Los respaldos viejos en formato `.db` (SQLite) **ya no sirven**.
 
-`/api/import-contacts` lee **el mismo archivo que produce el export**, para que
-lo que se descarga se pueda volver a subir sin tocarle nada. Reglas:
+### Segunda red: exportar e importar contactos
 
-- Identifica por **cedula**; si la fila no la trae, por **telefono**.
-- **El nombre decide si es la misma persona.** Una cedula mal digitada o un
-  telefono de familia hacen que dos clientes distintos coincidan; sin esa
-  comprobacion el segundo pisaba al primero y se perdia un cliente sin avisar.
-  Se acepta que el nombre crezca ("Ramiro Salcedo" → "Ramiro Salcedo Perez"),
-  pero si es otro se crea aparte y se reporta en `duplicados`.
-- Las **celdas vacias no borran** lo que ya esta guardado.
-- La columna **Etapa** es opcional; sin ella el contacto entra en Prospecto.
-- Las etiquetas vuelven a su valor interno ("Redes sociales" → `redes`) con
-  `labelToValue()` de `src/lib/csv.ts`, que tambien tiene el lector de CSV
-  compartido con la importacion de estados de visita (tolera el BOM de Excel,
-  el separador `;` y las comas dentro de comillas).
-
-El boton **tambien aparece con la lista vacia**: perder todos los contactos es
-justo cuando hace falta.
-
----
-
-## Recuperar datos borrados
-
-La base esta en modo WAL, asi que `data/crm.db-wal` guarda versiones
-anteriores. Se recupera truncando la WAL a un punto previo:
-
-1. Copiar `crm.db` y `crm.db-wal` a otra carpeta (nunca trabajar sobre los
-   originales)
-2. Leer el tamano de pagina en el byte 8 de la WAL; cada frame mide
-   `24 + pageSize`
-3. Ir recortando la WAL a N frames y abrir la copia hasta encontrar el punto
-   con los datos intactos
-4. Insertar esas filas de vuelta en la base viva
-
-Ya se uso con exito para recuperar 6 contactos, 5 visitas y 9 actividades.
+*Contactos → Importar*. Solo lleva los campos del formulario y la etapa; las
+visitas, las gestiones, los usuarios y el historial solo vuelven con el
+respaldo JSON.
