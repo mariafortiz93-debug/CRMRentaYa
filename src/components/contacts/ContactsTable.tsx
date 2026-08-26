@@ -19,7 +19,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { Search, Users, Download, Trash2 } from "lucide-react";
+import { ImportContactsDialog } from "./ImportContactsDialog";
+import { Search, Users, Download, Upload, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/constants";
 import { SOURCE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ export function ContactsTable({ contacts, stages, onChanged }: ContactsTableProp
   const [search, setSearch] = useState("");
   const [toDelete, setToDelete] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const inFlight = useRef(false);
 
   const handleDelete = async () => {
@@ -76,14 +78,35 @@ export function ContactsTable({ contacts, stages, onChanged }: ContactsTableProp
   });
 
   if (contacts.length === 0) {
+    // Importar tiene que estar tambien aqui: la lista vacia es justo la
+    // situacion en la que hay que recuperar la informacion desde un Excel.
     return (
-      <EmptyState
-        icon={Users}
-        title="No hay contactos"
-        description="Agrega tu primer contacto para comenzar a gestionar tu pipeline de ventas."
-        actionLabel="Agregar contacto"
-        onAction={() => router.push("/contacts?new=true")}
-      />
+      <>
+        <EmptyState
+          icon={Users}
+          title="No hay contactos"
+          description="Agrega tu primer contacto, o recupera la informacion desde un archivo de Excel."
+          actionLabel="Agregar contacto"
+          onAction={() => router.push("/contacts?new=true")}
+        />
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setImporting(true)}
+            className="cursor-pointer"
+          >
+            <Upload className="h-4 w-4 mr-1" />
+            Importar desde Excel
+          </Button>
+        </div>
+        <ImportContactsDialog
+          open={importing}
+          onClose={() => {
+            setImporting(false);
+            onChanged?.();
+          }}
+        />
+      </>
     );
   }
 
@@ -109,8 +132,25 @@ export function ContactsTable({ contacts, stages, onChanged }: ContactsTableProp
             <Download className="h-4 w-4 mr-1" />
             Exportar
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setImporting(true)}
+            className="cursor-pointer"
+          >
+            <Upload className="h-4 w-4 mr-1" />
+            Importar
+          </Button>
         </div>
       </div>
+
+      <ImportContactsDialog
+        open={importing}
+        onClose={() => {
+          setImporting(false);
+          onChanged?.();
+        }}
+      />
 
       <div className="rounded-lg border">
         <Table>

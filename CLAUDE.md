@@ -166,6 +166,24 @@ despliegue.
 No se puede quitar el rol, desactivar ni borrar al ultimo super administrador
 activo: si no, nadie podria volver a administrar usuarios.
 
+### Llave de repuesto (quedarse por fuera)
+
+`ensureSuperAdmin` solo actua cuando **no hay ninguno**, asi que si se pierde
+la clave del super administrador no habria forma de volver a entrar: el CRM no
+manda correos y nadie mas puede administrar usuarios.
+
+Para eso esta `ensureRecoveryAdmin()` (`src/db/users.ts`), que corre en cada
+arranque. Definiendo **`CRM_RECOVERY_USER`** y **`CRM_RECOVERY_PASSWORD`** en
+el panel del hosting, ese usuario queda activo y con rol de super
+administrador: se crea si no existe, y si existe se reactiva y se le pone esa
+clave. Opcional: `CRM_RECOVERY_NAME`.
+
+A diferencia de la siembra normal, **si pisa la clave**, y lo hace en cada
+arranque mientras las variables sigan puestas. **Hay que borrarlas en cuanto
+se recupere el acceso.** Entra con `must_change_password`, asi que el CRM
+obliga a cambiarla al primer ingreso, y deja un aviso en el log del hosting
+(nunca la clave). No degrada ni desactiva a nadie mas.
+
 ---
 
 ## Registros (quien hizo cada cosa)
@@ -269,7 +287,8 @@ fecha prometida, motivo y observacion.
 | `/api/pipeline` | GET, PUT | Tablero; mover contacto de etapa. |
 | `/api/visits` · `/api/visits/[id]` | GET, POST, PUT, DELETE | Agendar y reprogramar visitas. |
 | `/api/managements` | GET, POST | Historico de gestiones. `?contactId=` filtra. |
-| `/api/export` | GET | `?type=contacts` (solo campos del formulario), `visit-states`, `visit-results`. |
+| `/api/export` | GET | `?type=contacts` (campos del formulario + etapa), `visit-states`, `visit-results`. |
+| `/api/import-contacts` | POST | Importa contactos desde el CSV que produce el export. Ver abajo. |
 | `/api/import-visit-states` | POST | Importa estados desde CSV, identifica por cedula. |
 | `/api/auth/login` · `/logout` | POST | Entrar y salir, con usuario y clave. |
 | `/api/auth/me` | GET | Quien esta conectado y con que permisos, ahora mismo. |
@@ -375,6 +394,11 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
   al crear el lead (antes salia todo como "Otro"); "Iniciaron tramite" dejo de
   contar a los clientes perdidos; y cada tarjeta trae un desplegable
   *"Mover a otra etapa..."* para no depender del arrastre.
+- **Importar contactos** — el CSV del export se puede volver a subir tal cual
+  (*Contactos → Importar*), identificando por cedula o telefono y sin duplicar.
+  Ademas, **llave de repuesto** para el acceso: `CRM_RECOVERY_USER` y
+  `CRM_RECOVERY_PASSWORD` crean un super administrador de emergencia desde el
+  panel del hosting.
 
 ### Errores corregidos (no repetirlos)
 
@@ -424,6 +448,12 @@ fallara por clave foranea. Ya paso dos veces (con `visits` y con
   mostraba el desplegable de la fuente y lo mandaba con el valor por defecto
   "otro". Regla: **un campo que alimenta un indicador no puede tener valor por
   defecto**, o nadie lo cambia y el indicador miente.
+- **Importar por cedula fusionaba a dos personas distintas**: en las pruebas
+  habia dos contactos con la cedula `12345`, y al reimportar el segundo pisaba
+  al primero: entraban 5 filas y quedaban 4 clientes, sin ningun aviso. Regla:
+  **buscar por un identificador que puede venir mal digitado exige confirmar
+  con otro dato** (aqui el nombre) y, si no cuadra, crear aparte y reportarlo.
+  Nunca fusionar en silencio.
 
 ---
 
@@ -463,6 +493,31 @@ y no semanas despues.
 
 Las claves foraneas se apagan **fuera** de la transaccion: dentro, el PRAGMA no
 tiene efecto y el borrado fallaria por el orden de las tablas.
+
+### Importar contactos desde Excel
+
+*Contactos → Importar*. **No reemplaza al respaldo**: el CSV solo lleva los
+campos del formulario y la etapa. Visitas, gestiones, historial y usuarios solo
+vuelven con el respaldo de `crm.db`.
+
+`/api/import-contacts` lee **el mismo archivo que produce el export**, para que
+lo que se descarga se pueda volver a subir sin tocarle nada. Reglas:
+
+- Identifica por **cedula**; si la fila no la trae, por **telefono**.
+- **El nombre decide si es la misma persona.** Una cedula mal digitada o un
+  telefono de familia hacen que dos clientes distintos coincidan; sin esa
+  comprobacion el segundo pisaba al primero y se perdia un cliente sin avisar.
+  Se acepta que el nombre crezca ("Ramiro Salcedo" → "Ramiro Salcedo Perez"),
+  pero si es otro se crea aparte y se reporta en `duplicados`.
+- Las **celdas vacias no borran** lo que ya esta guardado.
+- La columna **Etapa** es opcional; sin ella el contacto entra en Prospecto.
+- Las etiquetas vuelven a su valor interno ("Redes sociales" → `redes`) con
+  `labelToValue()` de `src/lib/csv.ts`, que tambien tiene el lector de CSV
+  compartido con la importacion de estados de visita (tolera el BOM de Excel,
+  el separador `;` y las comas dentro de comillas).
+
+El boton **tambien aparece con la lista vacia**: perder todos los contactos es
+justo cuando hace falta.
 
 ---
 

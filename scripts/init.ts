@@ -14,7 +14,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { ensurePipelineStages } from "../src/db/stages";
-import { ensureSuperAdmin } from "../src/db/users";
+import { ensureSuperAdmin, ensureRecoveryAdmin } from "../src/db/users";
 import { dbPath, ensureDataDir } from "../src/db/paths";
 
 const DB_PATH = dbPath();
@@ -184,6 +184,8 @@ console.log("  " + stages.map((s) => s.name).join(" -> "));
 
 // Super administrador. Solo se crea si no existe ninguno.
 ensureSuperAdmin(sqlite);
+// Llave de repuesto, si estan puestas CRM_RECOVERY_USER y CRM_RECOVERY_PASSWORD.
+ensureRecoveryAdmin(sqlite);
 const admins = sqlite
   .prepare("SELECT username FROM users WHERE role = 'super_admin'")
   .all() as Array<{ username: string }>;

@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import { ensurePipelineStages } from "./stages";
-import { ensureSuperAdmin } from "./users";
+import { ensureSuperAdmin, ensureRecoveryAdmin } from "./users";
 import { dbPath, ensureDataDir } from "./paths";
 
 // La carpeta debe existir antes de abrir la base. Ver `paths.ts`: en produccion
@@ -180,6 +180,13 @@ try {
   ensureSuperAdmin(sqlite);
 } catch {
   // Igual que arriba: no bloqueamos el arranque por una carrera entre workers.
+}
+try {
+  // Llave de repuesto: solo hace algo si estan puestas las variables
+  // CRM_RECOVERY_USER y CRM_RECOVERY_PASSWORD en el panel del hosting.
+  ensureRecoveryAdmin(sqlite);
+} catch {
+  // Nunca puede impedir que el CRM arranque.
 }
 
 export const db = drizzle(sqlite, { schema });

@@ -52,8 +52,16 @@ export async function GET(request: NextRequest) {
     .all()
     .filter((c) => inRange(c.createdAt, range));
 
-  // Exportacion de contactos: solo los campos del formulario de registro.
+  /**
+   * Exportacion de contactos: los campos del formulario de registro, mas la
+   * etapa. La etapa va al final para que el archivo se pueda volver a subir
+   * por Importar y cada cliente regrese a su columna del pipeline.
+   */
   if (type === "contacts") {
+    const stageNameById = new Map(
+      db.select().from(pipelineStages).all().map((s) => [s.id, s.name])
+    );
+
     const headers = [
       "Nombre",
       "Telefono",
@@ -68,6 +76,7 @@ export async function GET(request: NextRequest) {
       "Empresa",
       "Como supo de la empresa",
       "Notas",
+      "Etapa",
     ];
 
     const rows = allContacts.map((c) => [
@@ -86,6 +95,7 @@ export async function GET(request: NextRequest) {
       c.company || "",
       SOURCE_LABELS[c.source as LeadSource] || c.source,
       c.notes || "",
+      stageNameById.get(c.stageId || "") || "",
     ]);
 
     return csvResponse(buildCSV(headers, rows), `contactos-${today}.csv`);

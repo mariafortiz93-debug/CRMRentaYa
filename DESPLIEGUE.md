@@ -124,3 +124,37 @@ grande.
 Para volver atras, en esa misma pantalla esta *Restaurar un respaldo*: subes el
 archivo y el CRM reemplaza todo por lo que traiga. Antes de hacerlo guarda solo
 una copia de lo que habia, por si te equivocas de archivo.
+
+### Segunda red: exportar e importar contactos
+
+En *Contactos* estan los botones **Exportar** e **Importar**. El archivo que
+descargas se puede volver a subir tal cual: cada cliente vuelve con sus datos y
+a su columna del pipeline. Los que ya existen se actualizan, no se duplican.
+
+**No reemplaza al respaldo.** El Excel solo lleva los datos del formulario y la
+etapa; las visitas agendadas, el historico de gestiones, los usuarios y los
+registros solo vuelven con el respaldo de `crm.db`.
+
+---
+
+## Si te quedas por fuera del CRM
+
+Si se pierde la clave del super administrador nadie puede volver a entrar: el
+CRM no manda correos y solo el super administrador administra usuarios.
+
+**La forma facil de prevenirlo:** entra a *Usuarios* y crea un segundo
+colaborador con rol **Super administrador**. Con dos, uno siempre le puede
+restablecer la clave al otro.
+
+**Si ya te quedaste por fuera**, desde el panel del hosting:
+
+1. `Variables` -> agrega **`CRM_RECOVERY_USER`** (por ejemplo `respaldo`) y
+   **`CRM_RECOVERY_PASSWORD`** con una clave que elijas tu.
+2. El servicio se reinicia solo. Ese usuario queda activo como super
+   administrador.
+3. Entra con el, cambia la clave (el CRM te la pide de una) y arregla lo que
+   haga falta en *Usuarios*.
+4. **Borra las dos variables.** Mientras esten puestas, esa clave se vuelve a
+   imponer en cada despliegue.
+
+No borra ni degrada a nadie mas: solo agrega o repara ese usuario.

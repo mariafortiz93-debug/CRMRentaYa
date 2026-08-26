@@ -71,3 +71,62 @@ export function ensureSuperAdmin(db: Database.Database): void {
     now
   );
 }
+
+/**
+ * Llave de repuesto: super administrador de emergencia.
+ *
+ * `ensureSuperAdmin` solo actua cuando **no hay ninguno**, asi que si la
+ * directora comercial pierde su clave, o alguien desactiva su usuario por
+ * error, no queda forma de volver a entrar: el CRM no manda correos y nadie
+ * mas puede administrar usuarios.
+ *
+ * Esta funcion cubre ese hueco desde el panel del hosting, sin tocar el
+ * codigo. Definiendo `CRM_RECOVERY_USER` y `CRM_RECOVERY_PASSWORD`, en el
+ * siguiente arranque ese usuario queda activo y con rol de super
+ * administrador (se crea, o se reactiva y se le pone esa clave).
+ *
+ * A diferencia de la siembra normal, **si pisa la clave**, y lo hace en cada
+ * arranque mientras las dos variables sigan puestas. Por eso hay que quitarlas
+ * en cuanto se recupere el acceso: mientras esten, esa clave se puede volver a
+ * imponer. Entra marcado con `must_change_password`, asi que el CRM obliga a
+ * cambiarla al primer ingreso.
+ *
+ * No degrada ni desactiva a nadie mas: solo agrega o repara ese usuario.
+ */
+export function ensureRecoveryAdmin(db: Database.Database): void {
+  const username = (readEnv("CRM_RECOVERY_USER") || "").trim().toLowerCase();
+  const password = readEnv("CRM_RECOVERY_PASSWORD") || "";
+  if (!username || !password) return;
+
+  const name = readEnv("CRM_RECOVERY_NAME") || "Acceso de emergencia";
+  const now = Date.now();
+  const permissions = JSON.stringify(ROLE_PRESETS.super_admin);
+  const hash = hashPassword(password);
+
+  const existing = db
+    .prepare("SELECT id FROM users WHERE username = ?")
+    .get(username) as { id: string } | undefined;
+
+  if (existing) {
+    db.prepare(
+      `UPDATE users
+       SET role = 'super_admin', permissions = ?, active = 1,
+           password_hash = ?, must_change_password = 1, updated_at = ?
+       WHERE id = ?`
+    ).run(permissions, hash, now, existing.id);
+  } else {
+    db.prepare(
+      `INSERT INTO users
+         (id, username, name, password_hash, role, permissions, active,
+          must_change_password, last_login_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'super_admin', ?, 1, 1, NULL, ?, ?)`
+    ).run(crypto.randomUUID(), username, name, hash, permissions, now, now);
+  }
+
+  // Queda en el log del hosting, nunca la clave: asi se ve que la llave de
+  // repuesto sigue activa y hay que quitar las variables.
+  console.warn(
+    `[CRM] Acceso de emergencia activo para el usuario "${username}". ` +
+      "Entra, cambia la clave y borra CRM_RECOVERY_USER y CRM_RECOVERY_PASSWORD."
+  );
+}

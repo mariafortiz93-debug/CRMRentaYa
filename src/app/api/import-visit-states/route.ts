@@ -5,15 +5,7 @@ import { eq } from "drizzle-orm";
 import type { VisitResult } from "@/types";
 import { requirePermission } from "@/lib/session";
 import { logAction } from "@/lib/audit";
-
-/** Normaliza texto: sin acentos, minusculas, sin espacios sobrantes. */
-function normalize(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .trim()
-    .toLowerCase();
-}
+import { parseCSV, normalize, findColumn } from "@/lib/csv";
 
 /** Acepta las etiquetas en espanol o los valores internos. */
 function parseVisitResult(value: string): VisitResult | null {
@@ -22,59 +14,6 @@ function parseVisitResult(value: string): VisitResult | null {
   if (["negado", "negada", "rechazado", "rechazada"].includes(v)) return "negado";
   if (["sin_proceso", "sinproceso", "sin_procesos"].includes(v)) return "sin_proceso";
   return null;
-}
-
-/** Parser de CSV que respeta comillas y saltos de linea dentro de campos. */
-function parseCSV(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-
-  // Quita el BOM que Excel agrega y unifica los saltos de linea.
-  const content = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
-
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (content[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-    if (char === '"') {
-      inQuotes = true;
-    } else if (char === "," || char === ";") {
-      row.push(field);
-      field = "";
-    } else if (char === "\n") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += char;
-    }
-  }
-  if (field !== "" || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
-}
-
-function findColumn(header: string[], candidates: string[]): number {
-  return header.findIndex((h) => {
-    const n = normalize(h).replace(/[.\s_]/g, "");
-    return candidates.some((c) => n === c || n.includes(c));
-  });
 }
 
 export async function POST(request: NextRequest) {
